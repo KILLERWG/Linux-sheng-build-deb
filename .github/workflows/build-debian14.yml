@@ -148,7 +148,7 @@ jobs:
             | 类型 | ${{ needs.prepare-release.outputs.variant }} |
 
             ### 🔐 默认凭据
-            - 用户名: `xiaomi` / 密码: `xiaomi`
+            - 用户名: `Lau` / 密码: `0000`
           files: "*.zst"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
