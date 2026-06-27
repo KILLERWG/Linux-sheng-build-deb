@@ -100,7 +100,7 @@ jobs:
       - name: "🔧 部署构建环境"
         run: |
           sudo apt update
-          sudo apt install -y debootstrap libarchive-tools zstd curl wget android-sdk-libsparse-utils
+          sudo apt install -y debootstrap libarchive-tools zstd curl wget android-sdk-libsparse-utils coreutils
 
       - name: Download kernel and sensor packages
         run: |
@@ -159,27 +159,79 @@ jobs:
           fi
           echo "::endgroup::"
 
-          echo "::group::📦 Build artifacts"
-          PKG_COUNT=$(ls -1 *.zst 2>/dev/null | wc -l)
-          if [ "$PKG_COUNT" -gt 0 ]; then
-            echo "Found $PKG_COUNT image(s):"
-            ls -lh *.zst
-          else
-            echo "❌ ERROR: No .zst image found!"
+          echo "::group::📦 Check raw artifacts"
+          RAW_COUNT=$(ls -1 *.img *.zst 2>/dev/null | wc -l)
+          if [ "$RAW_COUNT" -eq 0 ]; then
+            echo "❌ ERROR: No image files found after build!"
             exit 1
           fi
-          echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
+          ls -lh *.img *.zst 2>/dev/null || true
+          echo "::endgroup::"
+
+      # ✅ 新增：极限压缩 + 自动拆分（解决 2GB 限制）
+      - name: 🗜️ Compress & Split Image (zstd ultra)
+        id: compress
+        run: |
+          echo "::group::🗜️ Extreme compression with zstd -19 --ultra --long=31"
+          
+          # 安装最新版 zstd（确保支持 --ultra 和 --long=31）
+          ZSTD_VER=$(zstd --version | grep -oP '\d+\.\d+\.\d+' | head -1)
+          echo "Current zstd version: $ZSTD_VER"
+          
+          FINAL_FILES=""
+          for img in *.img *.zst; do
+            [ -f "$img" ] || continue
+            
+            BASENAME=$(basename "$img" .zst)
+            BASENAME=$(basename "$BASENAME" .img)
+            OUT_ZST="${BASENAME}.zst"
+            
+            echo "⏳ Compressing $img -> $OUT_ZST (this may take a while...)"
+            # 如果已经是 .zst，先解压再重压；如果是 .img，直接压
+            if [[ "$img" == *.zst ]]; then
+              zstd -d "$img" -o "${BASENAME}.tmp.img" --rm -f
+              zstd -19 --ultra --long=31 -T0 "${BASENAME}.tmp.img" -o "$OUT_ZST" --rm -f
+            else
+              zstd -19 --ultra --long=31 -T0 "$img" -o "$OUT_ZST" --rm -f
+            fi
+            
+            SIZE=$(stat -c%s "$OUT_ZST")
+            MAX_SIZE=$((2 * 1024 * 1024 * 1024))  # 2 GiB
+            
+            if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+              echo "⚠️ File $OUT_ZST is $(numfmt --to=iec-i --suffix=B $SIZE), exceeding 2GiB limit."
+              echo "✂️ Splitting into 1.9GiB parts..."
+              split -b 1900M "$OUT_ZST" "${OUT_ZST}.part_"
+              rm -f "$OUT_ZST"
+              PARTS=$(ls -1 "${OUT_ZST}.part_"* | tr '\n' ' ')
+              FINAL_FILES="$FINAL_FILES $PARTS"
+              echo "✅ Split complete: $PARTS"
+            else
+              echo "✅ $OUT_ZST is $(numfmt --to=iec-i --suffix=B $SIZE), within limit."
+              FINAL_FILES="$FINAL_FILES $OUT_ZST"
+            fi
+          done
+          
+          # 清理临时文件
+          rm -f *.tmp.img
+          
+          # 输出最终文件列表供后续步骤使用
+          echo "final_files=$FINAL_FILES" >> $GITHUB_OUTPUT
+          echo "📦 Final artifacts:"
+          ls -lh $FINAL_FILES
           echo "::endgroup::"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: debian-${{ matrix.desktop }}-${{ matrix.boot }}
-          path: "*.zst"
+          path: |
+            *.zst
+            *.zst.part_*
           retention-days: 7
 
       - name: Upload to Release
-        if: ${{ github.event.inputs.skip_release != 'true' && steps.build.outputs.pkg_count > 0 }}
+        if: ${{ github.event.inputs.skip_release != 'true' && steps.compress.outputs.final_files != '' }}
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
@@ -191,9 +243,19 @@ jobs:
             | 系统 | Debian 14 (Forky) |
             | 内核版本 | ${{ github.event.inputs.kernel_version }} |
             | 类型 | ${{ needs.prepare-release.outputs.variant }} |
+            | 桌面环境 | ${{ matrix.desktop }} |
+            | 启动模式 | ${{ matrix.boot }} |
 
             ### 🔐 默认凭据
             - 用户名: `Lau` / 密码: `0000`
-          files: "*.zst"
+
+            ### ⚠️ 下载须知
+            如果文件名包含 `.part_` 后缀，表示文件因超过 GitHub 2GB 限制被自动拆分。
+            请下载所有分片后，在本地执行以下命令合并：
+            ```bash
+            cat *.zst.part_* > debian-image.zst
+            zstd -d debian-image.zst
+            ```
+          files: ${{ steps.compress.outputs.final_files }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
