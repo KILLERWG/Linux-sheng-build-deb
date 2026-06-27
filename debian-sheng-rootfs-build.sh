@@ -125,18 +125,12 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         echo "📦 正在安装基础环境组件..."
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog apt-transport-https ca-certificates chrony"
 
-echo "⏱️ 正在启用 NTP 时间同步 (chrony)..."
-chroot rootdir systemctl enable chrony
+        echo "⏱️ 正在启用 NTP 时间同步 (chrony)..."
+        chroot rootdir systemctl enable chrony
 
         if [ "$distro_variant" != "server" ]; then
-            echo "🌏 正在配置中文输入法..."
-            chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
-
-            cat > rootdir/etc/environment <<EOF
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-EOF
+            echo "🌏 正在安装 CJK 字体..."
+            chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei"
         fi
 
         echo "📦 正在注入设备专属 .deb 驱动包 (由工作流预下载)..."
@@ -152,8 +146,8 @@ EOF
         # 📶 WiFi 驱动适配与区域码
         # =========================
         echo "⚙️ 正在预配置高通 WiFi 驱动适配与区域码..."
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends qrtr-tools" || true
-        chroot rootdir systemctl enable qrtr-ns || true
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends qrtr-tools"
+        chroot rootdir systemctl enable qrtr-ns
         echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.conf
 
         # =========================
@@ -167,6 +161,13 @@ EOF
             if [ "$FLAVOUR" = "gnome" ]; then
                 echo "🖥️ 安装 GNOME 桌面环境..."
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends gnome-core gnome-terminal gdm3 firefox-esr mesa-vulkan-drivers"
+                echo "⌨️ 配置 IBus 输入法 (拼音 + RIME)..."
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends ibus ibus-gtk3 ibus-libpinyin ibus-rime"
+                cat > rootdir/etc/environment <<EOF
+GTK_IM_MODULE=ibus
+QT_IM_MODULE=ibus
+XMODIFIERS=@im=ibus
+EOF
                 chroot rootdir systemctl enable gdm3
                 mkdir -p rootdir/etc/gdm3
                 cat > rootdir/etc/gdm3/daemon.conf <<EOF
@@ -180,6 +181,13 @@ EOF
                 echo "🖥️ 安装 KDE Plasma 桌面环境 (使用官方 kde-standard 方案)..."
                 # 直接拉取 kde-standard (取代零碎包)，附加上你脚本里提取的网络和蓝牙插件
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends plasma-desktop sddm konsole firefox-esr plasma-workspace systemsettings plasma-nm mesa-vulkan-drivers"
+                echo "⌨️ 配置 Fcitx5 输入法 (拼音 + RIME)..."
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-qt5 fcitx5-chinese-addons fcitx5-rime"
+                cat > rootdir/etc/environment <<EOF
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+EOF
                 chroot rootdir systemctl enable sddm
                 mkdir -p rootdir/etc/sddm.conf.d
                 cat > rootdir/etc/sddm.conf.d/autologin.conf <<EOF
