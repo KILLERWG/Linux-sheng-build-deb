@@ -1,4 +1,4 @@
-name: 🌀 Build Debian 14
+name: 🌀 Build Debian RootFS
 
 on:
   workflow_dispatch:
@@ -8,6 +8,14 @@ on:
         required: true
         type: string
         default: '7.1.0'
+      debian_version:
+        description: '选择 Debian 版本'
+        required: true
+        type: choice
+        options:
+          - trixie
+          - forky
+        default: 'forky'
       variant:
         description: '选择构建类型'
         required: true
@@ -50,6 +58,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
+      debian_version: ${{ steps.tag.outputs.debian_version }}
       variant: ${{ steps.tag.outputs.variant }}
       matrix_desktop: ${{ steps.set-matrix.outputs.desktop }}
       matrix_boot: ${{ steps.set-matrix.outputs.boot }}
@@ -57,9 +66,11 @@ jobs:
       - name: Generate release tag
         id: tag
         run: |
+          VERSION="${{ github.event.inputs.debian_version || 'forky' }}"
           VARIANT="${{ github.event.inputs.variant || 'desktop' }}"
-          TAG="debian14-${VARIANT}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          TAG="debian-${VERSION}-${VARIANT}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+          echo "debian_version=$VERSION" >> $GITHUB_OUTPUT
           echo "variant=$VARIANT" >> $GITHUB_OUTPUT
 
       - name: 🧮 Generate Dynamic Matrix
@@ -85,7 +96,7 @@ jobs:
           fi
 
   build-debian:
-    name: Build (${{ matrix.desktop }} | ${{ matrix.boot }})
+    name: Build (${{ needs.prepare-release.outputs.debian_version }} | ${{ matrix.desktop }} | ${{ matrix.boot }})
     runs-on: ubuntu-24.04-arm
     needs: prepare-release
     strategy:
@@ -150,12 +161,15 @@ jobs:
           echo "  Boot mode      : ${{ matrix.boot }}"
 
           chmod +x debian-sheng-rootfs-build.sh
+          DEBIAN_VER="${{ needs.prepare-release.outputs.debian_version }}"
           if [ "${{ matrix.desktop }}" == "server" ]; then
             echo "  Type           : server"
-            sudo bash debian-sheng-rootfs-build.sh debian-server "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}"
+            echo "  Debian version : $DEBIAN_VER"
+            sudo bash debian-sheng-rootfs-build.sh "debian-${DEBIAN_VER}-server" "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}"
           else
             echo "  Type           : desktop"
-            sudo bash debian-sheng-rootfs-build.sh debian-desktop "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}" "${{ matrix.desktop }}"
+            echo "  Debian version : $DEBIAN_VER"
+            sudo bash debian-sheng-rootfs-build.sh "debian-${DEBIAN_VER}-desktop" "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}" "${{ matrix.desktop }}"
           fi
           echo "::endgroup::"
 
@@ -174,7 +188,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: debian-${{ matrix.desktop }}-${{ matrix.boot }}
+          name: debian-${{ needs.prepare-release.outputs.debian_version }}-${{ matrix.desktop }}-${{ matrix.boot }}
           path: "*.zst"
           retention-days: 7
 
@@ -183,12 +197,12 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          name: "Debian 14 (${{ needs.prepare-release.outputs.variant }})"
+          name: "Debian ${{ needs.prepare-release.outputs.debian_version }} (${{ needs.prepare-release.outputs.variant }})"
           body: |
             ### 📋 系统信息
             | 项目 | 详情 |
             |------|------|
-            | 系统 | Debian 14 (Forky) |
+            | 系统 | Debian ${{ needs.prepare-release.outputs.debian_version }} |
             | 内核版本 | ${{ github.event.inputs.kernel_version }} |
             | 类型 | ${{ needs.prepare-release.outputs.variant }} |
 

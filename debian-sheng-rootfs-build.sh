@@ -5,10 +5,11 @@ IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 
 if [ $# -lt 2 ] || [ $# -gt 4 ]; then
-    echo "用法: $0 <distro-variant> <kernel_version> [boot_mode] [desktop_env]"
-    echo "distro-variant: debian-desktop, debian-server"
-    echo "示例: $0 debian-desktop 7.1 all all"
-    echo "示例: $0 debian-server 7.1 dual"
+    echo "用法: $0 <distro-version-variant> <kernel_version> [boot_mode] [desktop_env]"
+    echo "distro-version-variant: debian-trixie-desktop, debian-forky-desktop, debian-trixie-server, debian-forky-server"
+    echo "向后兼容: debian-desktop, debian-server (默认 forky)"
+    echo "示例: $0 debian-forky-desktop 7.1 all all"
+    echo "示例: $0 debian-trixie-server 7.1 dual"
     exit 1
 fi
 
@@ -23,14 +24,32 @@ TARGET_MODE=${3:-all}
 TARGET_FLAVOUR=${4:-all} 
 
 distro_type=$(echo "$DISTRO" | cut -d'-' -f1)
-distro_variant=$(echo "$DISTRO" | cut -d'-' -f2)
+distro_segments=$(echo "$DISTRO" | awk -F'-' '{print NF}')
+
+if [ "$distro_segments" -eq 2 ]; then
+    # 向后兼容: debian-desktop, debian-server → 默认 forky
+    distro_version="forky"
+    distro_variant=$(echo "$DISTRO" | cut -d'-' -f2)
+elif [ "$distro_segments" -eq 3 ]; then
+    # 新格式: debian-<version>-<variant>
+    distro_version=$(echo "$DISTRO" | cut -d'-' -f2)
+    distro_variant=$(echo "$DISTRO" | cut -d'-' -f3)
+else
+    echo "❌ 无法识别的发行版格式: $DISTRO"
+    echo "   支持格式: debian-<version>-<variant> (如 debian-forky-desktop)"
+    echo "   向后兼容: debian-<variant> (默认 forky)"
+    exit 1
+fi
 
 if [ "$distro_type" != "debian" ]; then
     echo "❌ 目前仅支持 debian 衍生版"
     exit 1
 fi
 
-distro_version="forky"
+if [[ ! "$distro_version" =~ ^(trixie|forky)$ ]]; then
+    echo "❌ 不支持的 Debian 版本: $distro_version (仅支持 trixie, forky)"
+    exit 1
+fi
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 # ==========================================
