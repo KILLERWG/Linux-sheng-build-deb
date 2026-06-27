@@ -104,27 +104,72 @@ jobs:
 
       - name: Download kernel and sensor packages
         run: |
-          gh release download "kernel-${{ github.event.inputs.kernel_version }}" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-          gh release download "ppd-arm-sync" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-          gh release download "xiaomi-mipps-auth" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+          echo "::group::Download kernel packages (kernel-${{ github.event.inputs.kernel_version }})"
+          if gh release view "kernel-${{ github.event.inputs.kernel_version }}" --repo "${{ github.repository }}" &>/dev/null; then
+            gh release download "kernel-${{ github.event.inputs.kernel_version }}" \
+              --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+            echo "✅ kernel packages downloaded"
+          else
+            echo "❌ ERROR: Release 'kernel-${{ github.event.inputs.kernel_version }}' not found!"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Download sensor packages (ppd-arm-sync)"
+          if gh release view "ppd-arm-sync" --repo "${{ github.repository }}" &>/dev/null; then
+            gh release download "ppd-arm-sync" \
+              --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+            echo "✅ sensor packages downloaded"
+          else
+            echo "❌ ERROR: Release 'ppd-arm-sync' not found!"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Download auth packages (xiaomi-mipps-auth)"
+          if gh release view "xiaomi-mipps-auth" --repo "${{ github.repository }}" &>/dev/null; then
+            gh release download "xiaomi-mipps-auth" \
+              --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+            echo "✅ auth packages downloaded"
+          else
+            echo "❌ ERROR: Release 'xiaomi-mipps-auth' not found!"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          ls -la *.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build RootFS
         id: build
         run: |
+          echo "::group::🔨 Build RootFS"
+          echo "  Kernel version : ${{ github.event.inputs.kernel_version }}"
+          echo "  Desktop        : ${{ matrix.desktop }}"
+          echo "  Boot mode      : ${{ matrix.boot }}"
+
           chmod +x debian-sheng-rootfs-build.sh
           if [ "${{ matrix.desktop }}" == "server" ]; then
+            echo "  Type           : server"
             sudo bash debian-sheng-rootfs-build.sh debian-server "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}"
           else
+            echo "  Type           : desktop"
             sudo bash debian-sheng-rootfs-build.sh debian-desktop "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}" "${{ matrix.desktop }}"
           fi
+          echo "::endgroup::"
 
+          echo "::group::📦 Build artifacts"
           PKG_COUNT=$(ls -1 *.zst 2>/dev/null | wc -l)
+          if [ "$PKG_COUNT" -gt 0 ]; then
+            echo "Found $PKG_COUNT image(s):"
+            ls -lh *.zst
+          else
+            echo "❌ ERROR: No .zst image found!"
+            exit 1
+          fi
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
