@@ -4,17 +4,23 @@ set -e
 IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 
-UBUNTU_SUITE="resolute"
 UBUNTU_MIRROR="http://ports.ubuntu.com/ubuntu-ports"
 
 usage() {
-    echo "用法: $0 <kernel_version> <desktop_environment>"
+    echo "用法: $0 <kernel_version> <desktop_environment> [ubuntu_suite]"
     echo "desktop_environment: gnome, kde, xfce 或 server"
+    echo "ubuntu_suite: resolute (默认)"
     exit 1
 }
 
-if [ $# -ne 2 ]; then
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
     usage
+fi
+
+UBUNTU_SUITE="${3:-resolute}"
+if [[ ! "$UBUNTU_SUITE" =~ ^(resolute)$ ]]; then
+    echo "❌ 不支持的 Ubuntu 版本: $UBUNTU_SUITE (仅支持 resolute)"
+    exit 1
 fi
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -31,10 +37,10 @@ if [[ ! "$DESKTOP_ENV" =~ ^(gnome|kde|xfce|server)$ ]]; then
 fi
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-ROOTFS_IMG="ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.img"
+ROOTFS_IMG="ubuntu_${UBUNTU_SUITE}_${DESKTOP_ENV}_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "开始构建 Ubuntu 26.04 LTS (Resolute) RootFS"
+echo "开始构建 Ubuntu ($UBUNTU_SUITE) RootFS"
 echo "桌面环境: $DESKTOP_ENV"
 echo "内核版本: $KERNEL"
 echo "=========================================="
@@ -72,6 +78,11 @@ chroot rootdir apt install -y --no-install-recommends \
 echo "⏱️ 正在启用 NTP 时间同步 (chrony)..."
 chroot rootdir systemctl enable chrony
 
+if [ "$DESKTOP_ENV" != "server" ]; then
+    echo "🌏 正在安装 CJK 字体..."
+    chroot rootdir apt install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei
+fi
+
 if ls *.deb 1> /dev/null 2>&1; then
     cp *.deb rootdir/tmp/
     # 此时系统有了 kmod 和 initramfs-tools，内核 deb 的 post-install 脚本才能正常运行
@@ -95,12 +106,33 @@ echo "sheng-ubuntu" > rootdir/etc/hostname
 # ========================================================
 if [ "$DESKTOP_ENV" = "gnome" ]; then
     chroot rootdir apt install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal firefox gdm3 mesa-vulkan-drivers
+    echo "⌨️ 配置 IBus 输入法 (拼音 + RIME)..."
+    chroot rootdir apt install -y --no-install-recommends ibus ibus-gtk3 ibus-libpinyin ibus-rime
+    cat > rootdir/etc/environment <<EOF
+GTK_IM_MODULE=ibus
+QT_IM_MODULE=ibus
+XMODIFIERS=@im=ibus
+EOF
     DM="gdm3"
 elif [ "$DESKTOP_ENV" = "kde" ]; then
     chroot rootdir apt install -y --no-install-recommends plasma-desktop sddm konsole firefox plasma-workspace systemsettings discover packagekit mesa-vulkan-drivers
+    echo "⌨️ 配置 Fcitx5 输入法 (拼音 + RIME)..."
+    chroot rootdir apt install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-qt5 fcitx5-chinese-addons fcitx5-rime
+    cat > rootdir/etc/environment <<EOF
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+EOF
     DM="sddm"
 elif [ "$DESKTOP_ENV" = "xfce" ]; then
     chroot rootdir apt install -y --no-install-recommends xfce4 xfce4-terminal lightdm lightdm-gtk-greeter firefox mousepad thunar mesa-vulkan-drivers
+    echo "⌨️ 配置 Fcitx5 输入法 (拼音 + RIME)..."
+    chroot rootdir apt install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-chinese-addons fcitx5-rime
+    cat > rootdir/etc/environment <<EOF
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+EOF
     DM="lightdm"
 elif [ "$DESKTOP_ENV" = "server" ]; then
     echo "🖥️ 配置无桌面服务器环境..."
@@ -131,8 +163,8 @@ printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 
 # 📶 修复点2：移植高通 8 Gen 2 WiFi 修复逻辑
 # ========================================================
 echo "⚙️ 正在预配置高通 WiFi 驱动适配与区域码..."
-chroot rootdir apt install -y qrtr-tools || true
-chroot rootdir systemctl enable qrtr-ns || true
+chroot rootdir apt install -y qrtr-tools
+chroot rootdir systemctl enable qrtr-ns
 
 # WiFi 区域码 (5GHz 频段支持)
 echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.conf
@@ -202,7 +234,7 @@ SPARSE_IMG="sparse_${ROOTFS_IMG}"
 img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
 
 echo "🗜️ 正在使用 zstd 压缩..."
-zstd -22 --ultra -T0 --long=31 "$SPARSE_IMG" -o "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.img.zst"
+zstd -22 --ultra -T0 --long=31 "$SPARSE_IMG" -o "ubuntu_${UBUNTU_SUITE}_${DESKTOP_ENV}_${TIMESTAMP}.img.zst"
 
 rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
 echo "🎉 终极修砖版 Ubuntu 构建成功！"
