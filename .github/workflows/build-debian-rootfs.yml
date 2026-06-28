@@ -7,7 +7,7 @@ on:
         description: '内核版本号 (例如 7.1.0)'
         required: true
         type: string
-        default: '7.1.0'
+        default: '7.1.1'
       debian_version:
         description: '选择 Debian 版本'
         required: true
@@ -15,7 +15,7 @@ on:
         options:
           - trixie
           - forky
-        default: 'forky'
+        default: 'trixie'
       variant:
         description: '选择构建类型'
         required: true
@@ -207,7 +207,7 @@ jobs:
             | 类型 | ${{ needs.prepare-release.outputs.variant }} |
 
             ### 🔐 默认凭据
-            - 用户名: `xiaomi` / 密码: `xiaomi`
+            - 用户名: `Lau` / 密码: `0000`
           files: "*.zst"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
