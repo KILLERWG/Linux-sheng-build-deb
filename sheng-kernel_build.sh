@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
+set -o pipefail
 
 # ==========================================
-# 0. 版本参数解析
+# 1. 版本参数解析
 # ==========================================
 usage() {
     echo "用法: $0 <kernel_version>"
@@ -11,6 +12,11 @@ usage() {
     echo "  内核版本号将用于:"
     echo "    - git clone 分支: sheng-<version>"
     echo "    - 内核配置下载: <version>/sm8550.config"
+    echo ""
+    echo "可选环境变量:"
+    echo "  KERNEL_ONLY=1       仅编译内核+模块+boot.img+linux-xiaomi-sheng.deb，跳过其余所有 deb 打包"
+    echo "  SKIP_KERNEL=1       完全跳过内核源码拉取与编译"
+    echo "  ENABLE_BUILD_LOG=1  将所有构建步骤输出记录到日志文件"
     exit 1
 }
 
@@ -25,7 +31,42 @@ echo "   Git 分支: sheng-${KERNEL_VERSION}"
 echo "   配置标签: ${KERNEL_VERSION}"
 
 # ==========================================
-# 1. 编译环境与工具链配置
+# 2. 日志文件 & 构建模式
+# ==========================================
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOG_FILE="${SCRIPT_DIR}/build-$(date +%Y%m%d-%H%M%S).log"
+
+is_kernel_only() {
+    [ "${KERNEL_ONLY:-0}" = "1" ] || [ "${KERNEL_ONLY:-0}" = "true" ]
+}
+
+log_exec() {
+    if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
+        "$@" 2>&1 | tee -a "$LOG_FILE"
+    else
+        "$@"
+    fi
+}
+
+build_deb() {
+    local pkg="$1"
+    if is_kernel_only && [ "$pkg" != "linux-xiaomi-sheng" ]; then
+        echo "⏭️ KERNEL_ONLY=1，跳过 $pkg 打包"
+    else
+        log_exec dpkg-deb --build --root-owner-group -Zzstd -z10 "$pkg"
+    fi
+}
+
+if is_kernel_only; then
+    echo "⚡ KERNEL_ONLY=1，仅编译内核+模块+boot.img，仅打包 linux-xiaomi-sheng.deb"
+fi
+
+if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
+    echo "📝 构建日志: $LOG_FILE"
+fi
+
+# ==========================================
+# 3. 编译环境与工具链配置
 # ==========================================
 export CCACHE_DIR="$HOME/.ccache"
 export CCACHE_MAXSIZE="10G"
@@ -43,7 +84,7 @@ export READELF="llvm-readelf"
 export STRIP="llvm-strip"
 
 # ==========================================
-# 2. 拉取内核源码 (SKIP_KERNEL=1 可跳过)
+# 4. 拉取内核源码
 # ==========================================
 if [ "${SKIP_KERNEL:-0}" = "1" ]; then
     echo "⏭️ SKIP_KERNEL=1，跳过内核构建"
@@ -55,44 +96,26 @@ cd linux
 # 🛠️ 自动配置 (跳过所有交互式菜单)
 # ==========================================
 echo "⚙️ 正在应用并强行补全配置..."
-wget -O .config https://github.com/ianchb/sm8550-mainline/releases/download/${KERNEL_VERSION}/sm8550.config
+log_exec wget -O .config https://github.com/ianchb/sm8550-mainline/releases/download/${KERNEL_VERSION}/sm8550.config
 
 # 🔥 启用 Clang ThinLTO 优化 (编译加速 + 运行时性能提升)
 ./scripts/config --disable LTO_NONE --enable LTO_CLANG_THIN
 
-make ARCH=arm64 CC="ccache clang" LLVM=1 olddefconfig
+log_exec make ARCH=arm64 CC="ccache clang" LLVM=1 olddefconfig
 # ==========================================
 
 # ==========================================
-# 4. 执行多线程编译
+# 5. 执行多线程编译
 # ==========================================
-# 由环境变量 ENABLE_BUILD_LOG 控制是否生成日志文件 (设为 1 或 true 启用)
-if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
-    LOG_FILE="../build-$(date +%Y%m%d-%H%M%S).log"
-    echo "🔨 开始极速编译... (日志: $LOG_FILE)"
-    make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 2>&1 | tee "$LOG_FILE"
-    BUILD_EXIT=${PIPESTATUS[0]}
-else
-    echo "🔨 开始极速编译... (日志已禁用)"
-    make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 2>&1
-    BUILD_EXIT=$?
-fi
-# 检查编译是否成功
-if [ $BUILD_EXIT -ne 0 ]; then
-    if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
-        echo "❌ 编译失败，日志: $LOG_FILE"
-    else
-        echo "❌ 编译失败"
-    fi
-    exit 1
-fi
+echo "🔨 开始极速编译..."
+log_exec make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
 
 # 更新 DEBIAN 版本
 sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
 
 # ==========================================
-# 5. 提取产物与打包
+# 6. 提取产物与打包
 # ==========================================
 PKGDIR=../linux-xiaomi-sheng
 mkdir -p $PKGDIR/boot
@@ -113,40 +136,39 @@ mv Image.gz-dtb_sheng zImage_sheng
 ../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_singleboot.img
 
 # 编译内核模块
-if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
-    make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install 2>&1 | tee -a "$LOG_FILE"
-else
-    make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install 2>&1
-fi
+log_exec make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install
 
 # 清理冗余链接
-rm -rf ../linux-xiaomi-sheng/lib/modules/*/build || true
-rm -rf ../linux-xiaomi-sheng/lib/modules/*/source || true
+rm -rf ../linux-xiaomi-sheng/lib/modules/*/build
+rm -rf ../linux-xiaomi-sheng/lib/modules/*/source
 
 cd ..
 
 fi  # SKIP_KERNEL
 
 # ==========================================
-# 6. 打包固件与驱动
+# 7. 外围组件构建
 # ==========================================
-# git clone https://github.com/map220v/sheng-firmware
-# mkdir -p firmware-xiaomi-sheng/usr/lib/firmware
-# cp -r sheng-firmware/* firmware-xiaomi-sheng/usr/lib/firmware/
+IS_ARM64=0
+if [ "$(uname -m)" = "aarch64" ]; then
+    IS_ARM64=1
+fi
 
-# git clone https://github.com/alghiffaryfa19/alsa-sheng
-# cp -r alsa-sheng/* alsa-xiaomi-sheng/
+if is_kernel_only; then
+    echo "⏭️ KERNEL_ONLY=1，跳过外围组件构建 (fastrpc, libssc, iio-sensor-proxy, mipps-auth)"
+else
 
 # ==========================================
-# 6.5 构建 fastrpc
+# 7.1 构建 fastrpc
 # ==========================================
-wget -q https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.6.zip
-unzip -qo v1.0.6.zip
+echo "📦 构建 fastrpc..."
+log_exec wget -q https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.6.zip
+log_exec unzip -qo v1.0.6.zip
 cd fastrpc-1.0.6
-autoreconf -is
-./configure --prefix=/usr --host=aarch64-linux-gnu
-make -j$(nproc)
-make DESTDIR=$PWD/stage install
+log_exec autoreconf -is
+log_exec ./configure --prefix=/usr --host=aarch64-linux-gnu
+log_exec make -j$(nproc)
+log_exec make DESTDIR=$PWD/stage install
 cd ..
 mkdir -p fastrpc/usr
 cp -r fastrpc-1.0.6/stage/usr/* fastrpc/usr/
@@ -154,7 +176,75 @@ find fastrpc/usr/bin -type f -exec chmod +x {} \;
 find fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 
 # ==========================================
-# 6.5.3 获取 xiaomi-mipps-auth (预构建 .deb)
+# 7.2 传感器组件 (仅 arm64 原生编译)
+# ==========================================
+
+if [ "$IS_ARM64" -eq 0 ]; then
+    echo "⏭️ 非 arm64 环境，跳过 libssc 和 iio-sensor-proxy 构建"
+else
+
+# --- libssc ---
+echo "📦 构建 libssc (Qualcomm Sensor Core)..."
+git clone https://codeberg.org/DylanVanAssche/libssc.git --depth 1 libssc-src
+cd libssc-src
+# 打补丁：等待 QMI 服务就绪
+cp ../wait_for_qmi_service.patch .
+patch -Np1 < wait_for_qmi_service.patch
+log_exec meson setup build --prefix=/usr
+log_exec meson compile -C build
+DESTDIR=$PWD/../libssc log_exec meson install -C build
+cd ..
+find libssc/usr/bin -type f -exec chmod +x {} \;
+find libssc/usr/lib -name "*.so*" -exec chmod +x {} \;
+# 打包并安装到系统，供 iio-sensor-proxy 编译链接
+log_exec dpkg-deb --build --root-owner-group -Zzstd -z10 libssc
+if [ -n "${SUDO_PASS:-}" ]; then
+    echo "$SUDO_PASS" | sudo -S dpkg -i libssc.deb
+else
+    sudo dpkg -i libssc.deb
+fi
+sudo ldconfig
+
+# --- iio-sensor-proxy ---
+echo "📦 构建 iio-sensor-proxy (SSC 支持)..."
+if ! pkg-config --exists udev && pkg-config --exists libudev; then
+    PC_DIR=$(pkg-config --variable=pc_path pkg-config 2>/dev/null | cut -d: -f1)
+    if [ -f "$PC_DIR/libudev.pc" ] && [ ! -f "$PC_DIR/udev.pc" ]; then
+        sudo ln -sf "$PC_DIR/libudev.pc" "$PC_DIR/udev.pc"
+    fi
+fi
+log_exec wget -q https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/-/archive/3.9/iio-sensor-proxy-3.9.tar.gz
+log_exec tar -xf iio-sensor-proxy-3.9.tar.gz
+cd iio-sensor-proxy-3.9
+log_exec meson setup output \
+  --prefix=/usr \
+  -Db_lto=true \
+  -Dssc-support=enabled \
+  -Dsystemdsystemunitdir=/usr/lib/systemd/system
+log_exec meson compile -C output
+DESTDIR=$PWD/../iio-sensor-proxy log_exec meson install --no-rebuild -C output
+cd ..
+if [ -d iio-sensor-proxy/lib ]; then
+    mkdir -p iio-sensor-proxy/usr/lib
+    cp -r iio-sensor-proxy/lib/* iio-sensor-proxy/usr/lib/
+    rm -rf iio-sensor-proxy/lib
+fi
+if [ -d iio-sensor-proxy/rules.d ]; then
+    mkdir -p iio-sensor-proxy/usr/lib/udev/rules.d
+    cp -r iio-sensor-proxy/rules.d/* iio-sensor-proxy/usr/lib/udev/rules.d/
+    rm -rf iio-sensor-proxy/rules.d
+fi
+find iio-sensor-proxy/usr/bin -type f -exec chmod +x {} \;
+find iio-sensor-proxy/usr/libexec -type f -exec chmod +x {} \;
+RULES_FILE="iio-sensor-proxy/usr/lib/udev/rules.d/80-iio-sensor-proxy.rules"
+if [ -f "$RULES_FILE" ]; then
+    sed -i 's/ssc-light ssc-compass/ssc-light ssc-compass ssc-accel ssc-proximity/' "$RULES_FILE"
+fi
+
+fi  # IS_ARM64
+
+# ==========================================
+# 7.3 获取 xiaomi-mipps-auth
 # ==========================================
 echo "📥 正在下载 xiaomi-mipps-auth 最新版本..."
 MIPPS_URL=$(wget -qO- https://api.github.com/repos/ianchb/xiaomi-mipps-auth/releases/latest | grep -o '"browser_download_url": "[^"]*\.deb"' | head -1 | cut -d'"' -f4)
@@ -165,94 +255,7 @@ else
     echo "⚠️ 未找到 xiaomi-mipps-auth .deb，跳过"
 fi
 
-# ==========================================
-# 6.5.5 架构检查 (libssc / iio-sensor-proxy 需要原生 arm64 编译)
-# ==========================================
-IS_ARM64=0
-if [ "$(uname -m)" = "aarch64" ]; then
-    IS_ARM64=1
-fi
-
-# ==========================================
-# 6.6 构建 libssc (Qualcomm Sensor Core 用户态库)
-# ==========================================
-if [ "$IS_ARM64" -eq 0 ]; then
-    echo "⏭️ 非 arm64 环境，跳过 libssc 编译"
-else
-    git clone https://codeberg.org/DylanVanAssche/libssc.git --depth 1 libssc-src
-    cd libssc-src
-
-    # 打补丁：等待 QMI 服务就绪
-    # 来源: https://github.com/ianchb/debian-sheng/blob/master/patches/wait_for_qmi_service.patch
-    cp ../wait_for_qmi_service.patch .
-    patch -Np1 < wait_for_qmi_service.patch
-
-    meson setup build --prefix=/usr
-    meson compile -C build
-    # 直接安装到 libssc 包目录，无需 cp
-    DESTDIR=$PWD/../libssc meson install -C build
-    cd ..
-
-    find libssc/usr/bin -type f -exec chmod +x {} \;
-    find libssc/usr/lib -name "*.so*" -exec chmod +x {} \;
-
-    # 打包并安装到系统，供 iio-sensor-proxy 编译链接
-    dpkg-deb --build --root-owner-group -Zzstd -z10 libssc
-    if [ -n "${SUDO_PASS:-}" ]; then
-        echo "$SUDO_PASS" | sudo -S dpkg -i libssc.deb
-    else
-        sudo dpkg -i libssc.deb
-    fi
-    sudo ldconfig
-fi
-
-# ==========================================
-# 6.7 构建 iio-sensor-proxy (启用 SSC 支持)
-# ==========================================
-if [ "$IS_ARM64" -eq 0 ]; then
-    echo "⏭️ 非 arm64 环境，跳过 iio-sensor-proxy 编译"
-else
-    # Debian libudev-dev 只提供 libudev.pc，meson 需要 udev.pc
-    if ! pkg-config --exists udev && pkg-config --exists libudev; then
-        PC_DIR=$(pkg-config --variable=pc_path pkg-config 2>/dev/null | cut -d: -f1)
-        if [ -f "$PC_DIR/libudev.pc" ] && [ ! -f "$PC_DIR/udev.pc" ]; then
-            sudo ln -sf "$PC_DIR/libudev.pc" "$PC_DIR/udev.pc"
-        fi
-    fi
-
-    wget -q https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/-/archive/3.9/iio-sensor-proxy-3.9.tar.gz
-    tar -xf iio-sensor-proxy-3.9.tar.gz
-    cd iio-sensor-proxy-3.9
-
-    meson setup output \
-      --prefix=/usr \
-      -Db_lto=true \
-      -Dssc-support=enabled \
-      -Dsystemdsystemunitdir=/usr/lib/systemd/system
-    meson compile -C output
-    # 直接安装到 iio-sensor-proxy 包目录，无需 cp
-    DESTDIR=$PWD/../iio-sensor-proxy meson install --no-rebuild -C output
-    cd ..
-
-    # udev 规则可能被装到 /lib 或 /rules.d（非标准路径）
-    if [ -d iio-sensor-proxy/lib ]; then
-        mkdir -p iio-sensor-proxy/usr/lib
-        cp -r iio-sensor-proxy/lib/* iio-sensor-proxy/usr/lib/
-        rm -rf iio-sensor-proxy/lib
-    fi
-    if [ -d iio-sensor-proxy/rules.d ]; then
-        mkdir -p iio-sensor-proxy/usr/lib/udev/rules.d
-        cp -r iio-sensor-proxy/rules.d/* iio-sensor-proxy/usr/lib/udev/rules.d/
-        rm -rf iio-sensor-proxy/rules.d
-    fi
-    find iio-sensor-proxy/usr/bin -type f -exec chmod +x {} \;
-    find iio-sensor-proxy/usr/libexec -type f -exec chmod +x {} \;
-    # 修复 udev 规则：添加 ssc-accel 和 ssc-proximity 支持
-    RULES_FILE="iio-sensor-proxy/usr/lib/udev/rules.d/80-iio-sensor-proxy.rules"
-    if [ -f "$RULES_FILE" ]; then
-        sed -i 's/ssc-light ssc-compass/ssc-light ssc-compass ssc-accel ssc-proximity/' "$RULES_FILE"
-    fi
-fi
+fi  # ! is_kernel_only
 
 echo "🔧 正在进行 UsrMerge 路径手术"
 
@@ -266,15 +269,15 @@ for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng fastrpc pp
 done
 
 
-dpkg-deb --build --root-owner-group -Zzstd -z10 linux-xiaomi-sheng
-dpkg-deb --build --root-owner-group -Zzstd -z10 firmware-xiaomi-sheng
-dpkg-deb --build --root-owner-group -Zzstd -z10 alsa-xiaomi-sheng
-dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-devauth
-dpkg-deb --build --root-owner-group -Zzstd -z10 fastrpc
-dpkg-deb --build --root-owner-group -Zzstd -z10 ppd-arm-sync
-if [ "$IS_ARM64" -eq 1 ]; then
-    dpkg-deb --build --root-owner-group -Zzstd -z10 iio-sensor-proxy
+build_deb linux-xiaomi-sheng
+build_deb firmware-xiaomi-sheng
+build_deb alsa-xiaomi-sheng
+build_deb sheng-devauth
+build_deb fastrpc
+build_deb ppd-arm-sync
+if [ "${IS_ARM64:-0}" -eq 1 ]; then
+    build_deb iio-sensor-proxy
 fi
-dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-sensors
+build_deb sheng-sensors
 
 echo "🎉 所有任务圆满完成！"
