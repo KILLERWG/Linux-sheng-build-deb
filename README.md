@@ -42,14 +42,17 @@
 
 ---
 
-## 🔐 登录凭证
+## 🚧 如何构建
+### 使用Github Action构建
 
-默认系统账户：
+1.fork此项目       
+2.在你fork的项目上点击`Action`页面，点击`I understand my workflows, go ahead and enable them`启用Action      
+3.点击`Build Kernel`条目，点击`Run workflow`输入内核版本号（如7.1.0），点击绿色的`Run workflow`等待内核以及相关固件包构建完成  
+4.内核编译完成后在Action左侧选择发行版（如Debian，Ubuntu尚未完整测试），点击`Run workflow`在输入你编译好的内核版本号，选择版本，构建类型等，点击绿色的`Run workflow`开始构建rootfs，构建完成后的成品可在release查看
 
-- **用户名**: `xiaomi`
-- **密码**: `xiaomi`
+### 本地构建
+待定
 
----
 
 ## 📖 详细指南（Wiki）
 
@@ -89,15 +92,12 @@
 
 ## ❤️ 致谢
 
-感谢所有社区贡献者的测试与文件提供。
-[@map220v](https://github.com/map220v) 主线内核开发，设备驱动等，
-[@ianchb](https://github.com/ianchb) MIPPS快充补丁，触控笔充电，
-[@alghiffaryfa19](https://github.com/alghiffaryfa19) 该设备项目的上游，
-[@code002-2](https://github.com/code002-2) 二次开发改进
-
-以及相关的贡献者
-
-# 相关群组
+[@map220v](https://github.com/map220v) 主线内核开发，设备驱动等，  
+[@ianchb](https://github.com/ianchb) MIPPS快充补丁，触控笔充电，  
+[@alghiffaryfa19](https://github.com/alghiffaryfa19) 该设备项目的上游，  
+[@code002-2](https://github.com/code002-2) 二次开发改进  
+感谢所有社区贡献者的测试与文件提供。  
+## 👬 相关群组
 
 [![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/Pad_6S_Pro_Linux_Chat) [![QQ Group](https://img.shields.io/badge/Follow-QQ-12B7F5.svg?logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=du2KyTQBUaKnU5ENPe5BD7r35s8t6m5qXuVHU656cEDmrpMVq0rTlUH1PuSLVN6n&busi_data=eyJncm91cENvZGUiOiIxMDkyMjc0NjU3IiwidG9rZW4iOiJQdDJqVnBGa1UzcFgyN0ZXSkxHYUhLbDhzZkN4N2g5d0ZoZFdFQkJyZVVMTzVkeitCTXArc2xKU1ZGRVpBd3VmIiwidWluIjoiMzQ5NzEzMDI2MSJ9&data=3eANpQ8g5VfxnuvZSz0QtAoD0D5o6yD7M9Gm8JQHbFs83icXp3G6bZYVVUHW47HKgL_Rq5ecivzzo8PNL8FCAQ&svctype=4&tempid=h5_group_info)
 
