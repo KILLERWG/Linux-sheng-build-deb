@@ -4,11 +4,11 @@ set -e
 case "$1" in
     remove|deconfigure)
         echo "ppd-arm-sync: Stopping and disabling service..."
-        systemctl stop ppd-governor-sync.service 2>/dev/null || true
-        systemctl disable ppd-governor-sync.service 2>/dev/null || true
+        systemctl is-active --quiet ppd-governor-sync.service && systemctl stop ppd-governor-sync.service
+        systemctl is-enabled --quiet ppd-governor-sync.service && systemctl disable ppd-governor-sync.service
         ;;
     upgrade)
         # During upgrade, just stop the service temporarily
-        systemctl stop ppd-governor-sync.service 2>/dev/null || true
+        systemctl is-active --quiet ppd-governor-sync.service && systemctl stop ppd-governor-sync.service
         ;;
 esac

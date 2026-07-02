@@ -16,14 +16,14 @@ set_governor() {
     esac
 
     # Check if governor is available
-    if ! grep -qw "$governor" "$AVAILABLE" 2>/dev/null; then
+    if ! grep -qw "$governor" "$AVAILABLE"; then
         echo "[ppd-arm-sync] governor '$governor' not available, skipping" >&2
         return 1
     fi
 
     # Apply to all CPUs
     for cpu_gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-        echo "$governor" > "$cpu_gov" 2>/dev/null || true
+        echo "$governor" > "$cpu_gov" || echo "[ppd-arm-sync] failed to write governor to $cpu_gov" >&2
     done
 
     echo "[ppd-arm-sync] profile=$profile → governor=$governor ✓"
@@ -32,15 +32,18 @@ set_governor() {
 # Apply immediately on start
 current=$(busctl get-property org.freedesktop.UPower.PowerProfiles \
     /org/freedesktop/UPower/PowerProfiles \
-    org.freedesktop.UPower.PowerProfiles ActiveProfile 2>/dev/null | sed 's/s "\(.*\)"/\1/')
+    org.freedesktop.UPower.PowerProfiles ActiveProfile | sed 's/s "\(.*\)"/\1/')
 [ -n "$current" ] && set_governor "$current"
 
-# Watch D-Bus for profile changes
-dbus-monitor --system "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='/org/freedesktop/UPower/PowerProfiles'" 2>/dev/null | \
-while IFS= read -r line; do
-    case "$line" in
-        *\"power-saver\"*)  set_governor "power-saver"   ;;
-        *\"balanced\"*)     set_governor "balanced"      ;;
-        *\"performance\"*)  set_governor "performance"   ;;
-    esac
+# Watch D-Bus for profile changes (auto-reconnect on failure)
+while true; do
+    dbus-monitor --system "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='/org/freedesktop/UPower/PowerProfiles'" | \
+    while IFS= read -r line; do
+        case "$line" in
+            *\"power-saver\"*)  set_governor "power-saver"   ;;
+            *\"balanced\"*)     set_governor "balanced"      ;;
+            *\"performance\"*)  set_governor "performance"   ;;
+        esac
+    done
+    sleep 1
 done

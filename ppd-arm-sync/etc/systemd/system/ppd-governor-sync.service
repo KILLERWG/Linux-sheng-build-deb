@@ -1,6 +1,5 @@
 [Unit]
 Description=Sync CPU governor to power-profiles-daemon profile
-Documentation=https://github.com/NeroReflect/ppd-arm-sync
 After=power-profiles-daemon.service
 Requires=power-profiles-daemon.service
 BindsTo=power-profiles-daemon.service

@@ -6,22 +6,22 @@ case "$1" in
         echo "ppd-arm-sync: Configuring CPU governor sync service..."
 
         # Reload systemd to pick up new unit files
-        systemctl daemon-reload || true
+        systemctl daemon-reload
 
         # Restart power-profiles-daemon to apply fake driver drop-in
         if systemctl is-active power-profiles-daemon >/dev/null 2>&1; then
-            systemctl restart power-profiles-daemon || true
+            systemctl restart power-profiles-daemon
         fi
 
         # Enable auto-start on boot
         echo "ppd-arm-sync: Enabling ppd-governor-sync.service for auto-start on boot..."
-        systemctl enable ppd-governor-sync.service 2>/dev/null || {
+        systemctl enable ppd-governor-sync.service || {
             echo "ppd-arm-sync: WARNING - Failed to enable service (systemd may not be running)"
         }
 
         # Start service now (without reboot)
         echo "ppd-arm-sync: Starting ppd-governor-sync.service..."
-        if systemctl start ppd-governor-sync.service 2>/dev/null; then
+        if systemctl start ppd-governor-sync.service; then
             echo "ppd-arm-sync: Service started successfully ✓"
         else
             echo "ppd-arm-sync: WARNING - Failed to start service (systemd may not be running)"

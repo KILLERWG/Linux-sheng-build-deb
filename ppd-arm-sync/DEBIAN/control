@@ -1,11 +1,10 @@
 Package: ppd-arm-sync
 Version: 1.0.2
 Architecture: arm64
-Maintainer: xiaomi <xiaomi@sheng-debian>
+Maintainer: GhfunNiHe <bbcctv520@petalmail.com>
 Depends: power-profiles-daemon, dbus, systemd
 Section: admin
 Priority: optional
-Homepage: https://github.com/NeroReflect/ppd-arm-sync
 Description: Sync CPU governor when power-profiles-daemon profile changes
  Maps power-profiles-daemon profiles to actual CPU frequency governors
  on ARM devices that lack ACPI platform_profile support.
