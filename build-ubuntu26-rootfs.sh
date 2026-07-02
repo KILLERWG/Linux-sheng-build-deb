@@ -7,17 +7,21 @@ FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 UBUNTU_MIRROR="http://ports.ubuntu.com/ubuntu-ports"
 
 usage() {
-    echo "用法: $0 <kernel_version> <desktop_environment> [ubuntu_suite]"
+    echo "用法: $0 <kernel_version> <desktop_environment> [ubuntu_suite] [username] [password]"
     echo "desktop_environment: gnome, kde, xfce 或 server"
     echo "ubuntu_suite: resolute (默认)"
+    echo "username: 默认 xiaomi"
+    echo "password: 默认 xiaomi"
     exit 1
 }
 
-if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+if [ $# -lt 2 ] || [ $# -gt 5 ]; then
     usage
 fi
 
 UBUNTU_SUITE="${3:-resolute}"
+USERNAME="${4:-xiaomi}"
+PASSWORD="${5:-xiaomi}"
 if [[ ! "$UBUNTU_SUITE" =~ ^(resolute)$ ]]; then
     echo "❌ 不支持的 Ubuntu 版本: $UBUNTU_SUITE (仅支持 resolute)"
     exit 1
@@ -139,13 +143,13 @@ elif [ "$DESKTOP_ENV" = "server" ]; then
     DM=""
 fi
 
-# 创建普通用户 xiaomi
-chroot rootdir useradd -m -s /bin/bash xiaomi
-echo "xiaomi:xiaomi" | chroot rootdir chpasswd
+# 创建普通用户
+chroot rootdir useradd -m -s /bin/bash ${USERNAME}
+echo "${USERNAME}:${PASSWORD}" | chroot rootdir chpasswd
 if [ "$DESKTOP_ENV" = "server" ]; then
-    chroot rootdir usermod -aG sudo xiaomi
+    chroot rootdir usermod -aG sudo ${USERNAME}
 else
-    chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev xiaomi
+    chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev ${USERNAME}
 fi
 
 # ========================================================
@@ -176,14 +180,14 @@ echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.co
 # 1. GNOME 配置
 if [ "$DM" = "gdm3" ]; then
     mkdir -p rootdir/etc/gdm3
-    printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=xiaomi\n" > rootdir/etc/gdm3/daemon.conf
+    printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=${USERNAME}\n" > rootdir/etc/gdm3/daemon.conf
     chroot rootdir systemctl enable gdm3
 fi
 
 # 2. KDE 防息屏加固与自动登录
 if [ "$DM" = "sddm" ]; then
     mkdir -p rootdir/etc/sddm.conf.d
-    printf "[Autologin]\nUser=xiaomi\nSession=plasma\n" > rootdir/etc/sddm.conf.d/autologin.conf
+    printf "[Autologin]\nUser=${USERNAME}\nSession=plasma\n" > rootdir/etc/sddm.conf.d/autologin.conf
     
     if chroot rootdir id -u sddm >/dev/null 2>&1; then
         chroot rootdir usermod -aG video,render,input sddm || true
@@ -197,7 +201,7 @@ fi
 # 3. XFCE 配置
 if [ "$DM" = "lightdm" ]; then
     mkdir -p rootdir/etc/lightdm/lightdm.conf.d
-    printf "[Seat:*]\nautologin-user=xiaomi\nautologin-user-timeout=0\n" > rootdir/etc/lightdm/lightdm.conf.d/autologin.conf
+    printf "[Seat:*]\nautologin-user=${USERNAME}\nautologin-user-timeout=0\n" > rootdir/etc/lightdm/lightdm.conf.d/autologin.conf
     chroot rootdir systemctl enable lightdm
 fi
 

@@ -1,0 +1,32 @@
+[Unit]
+Description=Sync CPU governor to power-profiles-daemon profile
+Documentation=https://github.com/NeroReflect/ppd-arm-sync
+After=power-profiles-daemon.service
+Requires=power-profiles-daemon.service
+BindsTo=power-profiles-daemon.service
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/ppd-arm-sync/ppd-governor-sync
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+ReadWritePaths=/sys/devices/system/cpu
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=graphical.target

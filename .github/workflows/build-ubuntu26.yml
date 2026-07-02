@@ -25,6 +25,14 @@ on:
           - kde
           - xfce
         default: 'all'
+      username:
+        description: '普通用户名 (默认 xiaomi)'
+        type: string
+        default: 'xiaomi'
+      password:
+        description: '普通用户密码 (默认 xiaomi)'
+        type: string
+        default: 'xiaomi'
       skip_release:
         description: '跳过创建GitHub Release'
         type: boolean
@@ -96,27 +104,6 @@ jobs:
           fi
           echo "::endgroup::"
 
-          echo "::group::Download sensor packages (ppd-arm-sync)"
-          if gh release view "ppd-arm-sync" --repo "${{ github.repository }}" &>/dev/null; then
-            gh release download "ppd-arm-sync" \
-              --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-            echo "✅ sensor packages downloaded"
-          else
-            echo "❌ ERROR: Release 'ppd-arm-sync' not found!"
-            exit 1
-          fi
-          echo "::endgroup::"
-
-          echo "::group::Download auth packages (xiaomi-mipps-auth)"
-          if gh release view "xiaomi-mipps-auth" --repo "${{ github.repository }}" &>/dev/null; then
-            gh release download "xiaomi-mipps-auth" \
-              --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-            echo "✅ auth packages downloaded"
-          else
-            echo "❌ ERROR: Release 'xiaomi-mipps-auth' not found!"
-            exit 1
-          fi
-          echo "::endgroup::"
 
           ls -la *.deb
         env:
@@ -130,7 +117,7 @@ jobs:
           echo "  Desktop        : ${{ matrix.desktop }}"
 
           chmod +x build-ubuntu26-rootfs.sh
-          sudo ./build-ubuntu26-rootfs.sh ${{ github.event.inputs.kernel_version }} ${{ matrix.desktop }}
+          sudo ./build-ubuntu26-rootfs.sh ${{ github.event.inputs.kernel_version }} ${{ matrix.desktop }} resolute ${{ github.event.inputs.username }} ${{ github.event.inputs.password }}
           echo "::endgroup::"
 
           echo "::group::📦 Build artifacts"
@@ -168,7 +155,7 @@ jobs:
             | 类型 | ${{ needs.prepare-release.outputs.variant }} |
 
             ### 🔐 默认凭据
-            - 用户名: `xiaomi` / 密码: `xiaomi`
+            - 用户名: `${{ github.event.inputs.username }}` / 密码: `${{ github.event.inputs.password }}`
           files: ${{ steps.build.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

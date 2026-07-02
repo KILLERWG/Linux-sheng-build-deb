@@ -1,0 +1,38 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        echo "ppd-arm-sync: Configuring CPU governor sync service..."
+
+        # Reload systemd to pick up new unit files
+        systemctl daemon-reload || true
+
+        # Restart power-profiles-daemon to apply fake driver drop-in
+        if systemctl is-active power-profiles-daemon >/dev/null 2>&1; then
+            systemctl restart power-profiles-daemon || true
+        fi
+
+        # Enable auto-start on boot
+        echo "ppd-arm-sync: Enabling ppd-governor-sync.service for auto-start on boot..."
+        systemctl enable ppd-governor-sync.service 2>/dev/null || {
+            echo "ppd-arm-sync: WARNING - Failed to enable service (systemd may not be running)"
+        }
+
+        # Start service now (without reboot)
+        echo "ppd-arm-sync: Starting ppd-governor-sync.service..."
+        if systemctl start ppd-governor-sync.service 2>/dev/null; then
+            echo "ppd-arm-sync: Service started successfully ✓"
+        else
+            echo "ppd-arm-sync: WARNING - Failed to start service (systemd may not be running)"
+            echo "  It will auto-start on next boot."
+        fi
+
+        # Show status
+        echo ""
+        echo "ppd-arm-sync: CPU governor sync installed."
+        echo "  Check status:  systemctl status ppd-governor-sync"
+        echo "  Check profile: powerprofilesctl list"
+        echo "  Check governor: cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
+        ;;
+esac

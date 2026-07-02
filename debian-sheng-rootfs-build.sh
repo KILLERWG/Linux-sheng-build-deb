@@ -4,10 +4,12 @@ set -e
 IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 
-if [ $# -lt 2 ] || [ $# -gt 4 ]; then
-    echo "用法: $0 <distro-version-variant> <kernel_version> [boot_mode] [desktop_env]"
+if [ $# -lt 2 ] || [ $# -gt 6 ]; then
+    echo "用法: $0 <distro-version-variant> <kernel_version> [boot_mode] [desktop_env] [username] [password]"
     echo "distro-version-variant: debian-trixie-desktop, debian-forky-desktop, debian-trixie-server, debian-forky-server"
     echo "向后兼容: debian-desktop, debian-server (默认 forky)"
+    echo "username: 默认 xiaomi"
+    echo "password: 默认 xiaomi"
     echo "示例: $0 debian-forky-desktop 7.1 all all"
     echo "示例: $0 debian-trixie-server 7.1 dual"
     exit 1
@@ -21,7 +23,9 @@ fi
 DISTRO=$1
 KERNEL=$2
 TARGET_MODE=${3:-all}
-TARGET_FLAVOUR=${4:-all} 
+TARGET_FLAVOUR=${4:-all}
+USERNAME="${5:-xiaomi}"
+PASSWORD="${6:-xiaomi}"
 
 distro_type=$(echo "$DISTRO" | cut -d'-' -f1)
 distro_segments=$(echo "$DISTRO" | awk -F'-' '{print NF}')
@@ -154,9 +158,9 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         # 🖥️ 桌面环境分发中心
         # =========================
         if [ "$distro_variant" = "desktop" ]; then
-            chroot rootdir useradd -m -s /bin/bash xiaomi || true
-            chroot rootdir bash -c "echo 'xiaomi:xiaomi' | chpasswd"
-            chroot rootdir usermod -aG sudo,audio,video,input xiaomi
+            chroot rootdir useradd -m -s /bin/bash ${USERNAME}
+            chroot rootdir bash -c "echo '${USERNAME}:${PASSWORD}' | chpasswd"
+            chroot rootdir usermod -aG sudo,audio,video,input ${USERNAME}
 
             if [ "$FLAVOUR" = "gnome" ]; then
                 echo "🖥️ 安装 GNOME 桌面环境..."
@@ -173,7 +177,7 @@ EOF
                 cat > rootdir/etc/gdm3/daemon.conf <<EOF
 [daemon]
 AutomaticLoginEnable=true
-AutomaticLogin=xiaomi
+AutomaticLogin=${USERNAME}
 EOF
 
             elif [ "$FLAVOUR" = "kde" ]; then
@@ -192,7 +196,7 @@ EOF
                 mkdir -p rootdir/etc/sddm.conf.d
                 cat > rootdir/etc/sddm.conf.d/autologin.conf <<EOF
 [Autologin]
-User=xiaomi
+User=${USERNAME}
 Session=plasma
 EOF
             fi
@@ -202,9 +206,9 @@ EOF
 
         elif [ "$distro_variant" = "server" ]; then
             echo "🖥️ 配置无桌面服务器环境..."
-            chroot rootdir useradd -m -s /bin/bash xiaomi || true
-            chroot rootdir bash -c "echo 'xiaomi:xiaomi' | chpasswd"
-            chroot rootdir usermod -aG sudo xiaomi
+            chroot rootdir useradd -m -s /bin/bash ${USERNAME}
+            chroot rootdir bash -c "echo '${USERNAME}:${PASSWORD}' | chpasswd"
+            chroot rootdir usermod -aG sudo ${USERNAME}
             chroot rootdir systemctl enable NetworkManager
             chroot rootdir systemctl enable ssh
             chroot rootdir systemctl set-default multi-user.target

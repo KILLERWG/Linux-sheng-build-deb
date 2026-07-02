@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge|remove)
+        # Reload systemd to drop the removed unit files
+        systemctl daemon-reload 2>/dev/null || true
+        # Restart power-profiles-daemon without our drop-in
+        systemctl try-restart power-profiles-daemon.service 2>/dev/null || true
+        ;;
+esac

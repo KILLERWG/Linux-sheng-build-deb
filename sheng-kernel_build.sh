@@ -154,6 +154,18 @@ find fastrpc/usr/bin -type f -exec chmod +x {} \;
 find fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 
 # ==========================================
+# 6.5.3 获取 xiaomi-mipps-auth (预构建 .deb)
+# ==========================================
+echo "📥 正在下载 xiaomi-mipps-auth 最新版本..."
+MIPPS_URL=$(wget -qO- https://api.github.com/repos/ianchb/xiaomi-mipps-auth/releases/latest | grep -o '"browser_download_url": "[^"]*\.deb"' | head -1 | cut -d'"' -f4)
+if [ -n "$MIPPS_URL" ]; then
+    wget -q "$MIPPS_URL"
+    echo "✅ xiaomi-mipps-auth 下载完成"
+else
+    echo "⚠️ 未找到 xiaomi-mipps-auth .deb，跳过"
+fi
+
+# ==========================================
 # 6.5.5 架构检查 (libssc / iio-sensor-proxy 需要原生 arm64 编译)
 # ==========================================
 IS_ARM64=0
@@ -245,7 +257,7 @@ fi
 echo "🔧 正在进行 UsrMerge 路径手术"
 
 # 对所有可能包含 /lib 目录的包进行自动化修正
-for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng fastrpc; do
+for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng fastrpc ppd-arm-sync; do
     if [ -d "$pkg/lib" ]; then
         echo "✅ 正在将 $pkg 中的 /lib 迁移至 /usr/lib"
         mkdir -p "$pkg/usr"
@@ -259,6 +271,7 @@ dpkg-deb --build --root-owner-group -Zzstd -z10 firmware-xiaomi-sheng
 dpkg-deb --build --root-owner-group -Zzstd -z10 alsa-xiaomi-sheng
 dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-devauth
 dpkg-deb --build --root-owner-group -Zzstd -z10 fastrpc
+dpkg-deb --build --root-owner-group -Zzstd -z10 ppd-arm-sync
 if [ "$IS_ARM64" -eq 1 ]; then
     dpkg-deb --build --root-owner-group -Zzstd -z10 iio-sensor-proxy
 fi

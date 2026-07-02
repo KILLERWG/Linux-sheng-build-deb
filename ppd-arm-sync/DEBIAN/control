@@ -1,0 +1,18 @@
+Package: ppd-arm-sync
+Version: 1.0.2
+Architecture: arm64
+Maintainer: xiaomi <xiaomi@sheng-debian>
+Depends: power-profiles-daemon, dbus, systemd
+Section: admin
+Priority: optional
+Homepage: https://github.com/NeroReflect/ppd-arm-sync
+Description: Sync CPU governor when power-profiles-daemon profile changes
+ Maps power-profiles-daemon profiles to actual CPU frequency governors
+ on ARM devices that lack ACPI platform_profile support.
+ .
+ power-saver  → powersave governor
+ balanced     → schedutil governor
+ performance  → performance governor
+ .
+ Also enables the fake driver for power-profiles-daemon so KDE Plasma
+ recognizes power profiles correctly.
