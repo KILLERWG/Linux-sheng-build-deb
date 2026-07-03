@@ -147,16 +147,16 @@ jobs:
           echo "  Desktop        : ${{ matrix.desktop }}"
           echo "  Boot mode      : ${{ matrix.boot }}"
 
-          chmod +x debian-sheng-rootfs-build.sh
+          chmod +x scripts/debian-sheng-rootfs-build.sh
           DEBIAN_VER="${{ needs.prepare-release.outputs.debian_version }}"
           if [ "${{ matrix.desktop }}" == "server" ]; then
             echo "  Type           : server"
             echo "  Debian version : $DEBIAN_VER"
-            sudo bash debian-sheng-rootfs-build.sh "debian-${DEBIAN_VER}-server" "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}" "server" "${{ github.event.inputs.username }}" "${{ github.event.inputs.password }}"
+            sudo bash scripts/debian-sheng-rootfs-build.sh "debian-${DEBIAN_VER}-server" "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}" "server" "${{ github.event.inputs.username }}" "${{ github.event.inputs.password }}"
           else
             echo "  Type           : desktop"
             echo "  Debian version : $DEBIAN_VER"
-            sudo bash debian-sheng-rootfs-build.sh "debian-${DEBIAN_VER}-desktop" "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}" "${{ matrix.desktop }}" "${{ github.event.inputs.username }}" "${{ github.event.inputs.password }}"
+            sudo bash scripts/debian-sheng-rootfs-build.sh "debian-${DEBIAN_VER}-desktop" "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}" "${{ matrix.desktop }}" "${{ github.event.inputs.username }}" "${{ github.event.inputs.password }}"
           fi
           echo "::endgroup::"
 

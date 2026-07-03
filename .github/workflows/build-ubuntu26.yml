@@ -116,8 +116,8 @@ jobs:
           echo "  Kernel version : ${{ github.event.inputs.kernel_version }}"
           echo "  Desktop        : ${{ matrix.desktop }}"
 
-          chmod +x build-ubuntu26-rootfs.sh
-          sudo ./build-ubuntu26-rootfs.sh ${{ github.event.inputs.kernel_version }} ${{ matrix.desktop }} resolute ${{ github.event.inputs.username }} ${{ github.event.inputs.password }}
+          chmod +x scripts/build-ubuntu26-rootfs.sh
+          sudo ./scripts/build-ubuntu26-rootfs.sh ${{ github.event.inputs.kernel_version }} ${{ matrix.desktop }} resolute ${{ github.event.inputs.username }} ${{ github.event.inputs.password }}
           echo "::endgroup::"
 
           echo "::group::📦 Build artifacts"

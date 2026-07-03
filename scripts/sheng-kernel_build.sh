@@ -15,7 +15,6 @@ usage() {
     echo ""
     echo "可选环境变量:"
     echo "  KERNEL_ONLY=1       仅编译内核+模块+boot.img+linux-xiaomi-sheng.deb，跳过其余所有 deb 打包"
-    echo "  SKIP_KERNEL=1       完全跳过内核源码拉取与编译"
     echo "  ENABLE_BUILD_LOG=1  将所有构建步骤输出记录到日志文件"
     exit 1
 }
@@ -34,6 +33,8 @@ echo "   配置标签: ${KERNEL_VERSION}"
 # 2. 日志文件 & 构建模式
 # ==========================================
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
 LOG_FILE="${SCRIPT_DIR}/build-$(date +%Y%m%d-%H%M%S).log"
 
 is_kernel_only() {
@@ -50,7 +51,7 @@ log_exec() {
 
 build_deb() {
     local pkg="$1"
-    if is_kernel_only && [ "$pkg" != "linux-xiaomi-sheng" ]; then
+    if is_kernel_only && [ "$pkg" != "packages/linux-xiaomi-sheng" ]; then
         echo "⏭️ KERNEL_ONLY=1，跳过 $pkg 打包"
     else
         log_exec dpkg-deb --build --root-owner-group -Zzstd -z10 "$pkg"
@@ -86,9 +87,6 @@ export STRIP="llvm-strip"
 # ==========================================
 # 4. 拉取内核源码
 # ==========================================
-if [ "${SKIP_KERNEL:-0}" = "1" ]; then
-    echo "⏭️ SKIP_KERNEL=1，跳过内核构建"
-else
 git clone https://github.com/ianchb/sm8550-mainline.git --branch sheng-${KERNEL_VERSION} --depth 1 linux
 cd linux
 
@@ -112,12 +110,12 @@ log_exec make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
 
 # 更新 DEBIAN 版本
-sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
+sed -i "s/Version:.*/Version: ${_kernel_version}/" ../packages/linux-xiaomi-sheng/DEBIAN/control
 
 # ==========================================
 # 6. 提取产物与打包
 # ==========================================
-PKGDIR=../linux-xiaomi-sheng
+PKGDIR=../packages/linux-xiaomi-sheng
 mkdir -p $PKGDIR/boot
 
 install -Dm644 arch/arm64/boot/Image.gz $PKGDIR/boot/Image.gz
@@ -125,26 +123,24 @@ install -Dm644 arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb $PKGDIR/boot/sm8
 install -Dm644 .config $PKGDIR/boot/config-${_kernel_version}
 install -Dm644 System.map $PKGDIR/boot/System.map-${_kernel_version}
 
-chmod +x ../mkbootimg
+chmod +x ../tools/mkbootimg
 
 # 打包 boot.img
 cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > Image.gz-dtb_sheng
 install -Dm644 Image.gz-dtb_sheng $PKGDIR/boot/Image.gz-dtb_sheng
 mv Image.gz-dtb_sheng zImage_sheng
 
-../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_dualboot.img
-../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_singleboot.img
+../tools/mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_dualboot.img
+../tools/mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_singleboot.img
 
 # 编译内核模块
-log_exec make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install
+log_exec make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../packages/linux-xiaomi-sheng modules_install
 
 # 清理冗余链接
-rm -rf ../linux-xiaomi-sheng/lib/modules/*/build
-rm -rf ../linux-xiaomi-sheng/lib/modules/*/source
+rm -rf ../packages/linux-xiaomi-sheng/lib/modules/*/build
+rm -rf ../packages/linux-xiaomi-sheng/lib/modules/*/source
 
 cd ..
-
-fi  # SKIP_KERNEL
 
 # ==========================================
 # 7. 外围组件构建
@@ -170,17 +166,17 @@ log_exec ./configure --prefix=/usr --host=aarch64-linux-gnu
 log_exec make -j$(nproc)
 log_exec make DESTDIR=$PWD/stage install
 cd ..
-mkdir -p fastrpc/usr
-cp -r fastrpc-1.0.6/stage/usr/* fastrpc/usr/
-find fastrpc/usr/bin -type f -exec chmod +x {} \;
-find fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
+mkdir -p packages/fastrpc/usr
+cp -r fastrpc-1.0.6/stage/usr/* packages/fastrpc/usr/
+find packages/fastrpc/usr/bin -type f -exec chmod +x {} \;
+find packages/fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 
 # ==========================================
 # 7.2 传感器组件 (仅 arm64 原生编译)
 # ==========================================
 
 if [ "$IS_ARM64" -eq 0 ]; then
-    echo "⏭️ 非 arm64 环境，跳过 libssc 和 iio-sensor-proxy 构建"
+    echo "⏭️ 非 arm64 deb系环境，跳过 libssc 和 iio-sensor-proxy 构建"
 else
 
 # --- libssc ---
@@ -188,20 +184,20 @@ echo "📦 构建 libssc (Qualcomm Sensor Core)..."
 git clone https://codeberg.org/DylanVanAssche/libssc.git --depth 1 libssc-src
 cd libssc-src
 # 打补丁：等待 QMI 服务就绪
-cp ../wait_for_qmi_service.patch .
+cp ../tools/wait_for_qmi_service.patch .
 patch -Np1 < wait_for_qmi_service.patch
 log_exec meson setup build --prefix=/usr
 log_exec meson compile -C build
-DESTDIR=$PWD/../libssc log_exec meson install -C build
+DESTDIR=$PWD/../packages/libssc log_exec meson install -C build
 cd ..
-find libssc/usr/bin -type f -exec chmod +x {} \;
-find libssc/usr/lib -name "*.so*" -exec chmod +x {} \;
+find packages/libssc/usr/bin -type f -exec chmod +x {} \;
+find packages/libssc/usr/lib -name "*.so*" -exec chmod +x {} \;
 # 打包并安装到系统，供 iio-sensor-proxy 编译链接
-log_exec dpkg-deb --build --root-owner-group -Zzstd -z10 libssc
+log_exec dpkg-deb --build --root-owner-group -Zzstd -z10 packages/libssc
 if [ -n "${SUDO_PASS:-}" ]; then
-    echo "$SUDO_PASS" | sudo -S dpkg -i libssc.deb
+    echo "$SUDO_PASS" | sudo -S dpkg -i packages/libssc.deb
 else
-    sudo dpkg -i libssc.deb
+    sudo dpkg -i packages/libssc.deb
 fi
 sudo ldconfig
 
@@ -222,21 +218,21 @@ log_exec meson setup output \
   -Dssc-support=enabled \
   -Dsystemdsystemunitdir=/usr/lib/systemd/system
 log_exec meson compile -C output
-DESTDIR=$PWD/../iio-sensor-proxy log_exec meson install --no-rebuild -C output
+DESTDIR=$PWD/../packages/iio-sensor-proxy log_exec meson install --no-rebuild -C output
 cd ..
-if [ -d iio-sensor-proxy/lib ]; then
-    mkdir -p iio-sensor-proxy/usr/lib
-    cp -r iio-sensor-proxy/lib/* iio-sensor-proxy/usr/lib/
-    rm -rf iio-sensor-proxy/lib
+if [ -d packages/iio-sensor-proxy/lib ]; then
+    mkdir -p packages/iio-sensor-proxy/usr/lib
+    cp -r packages/iio-sensor-proxy/lib/* packages/iio-sensor-proxy/usr/lib/
+    rm -rf packages/iio-sensor-proxy/lib
 fi
-if [ -d iio-sensor-proxy/rules.d ]; then
-    mkdir -p iio-sensor-proxy/usr/lib/udev/rules.d
-    cp -r iio-sensor-proxy/rules.d/* iio-sensor-proxy/usr/lib/udev/rules.d/
-    rm -rf iio-sensor-proxy/rules.d
+if [ -d packages/iio-sensor-proxy/rules.d ]; then
+    mkdir -p packages/iio-sensor-proxy/usr/lib/udev/rules.d
+    cp -r packages/iio-sensor-proxy/rules.d/* packages/iio-sensor-proxy/usr/lib/udev/rules.d/
+    rm -rf packages/iio-sensor-proxy/rules.d
 fi
-find iio-sensor-proxy/usr/bin -type f -exec chmod +x {} \;
-find iio-sensor-proxy/usr/libexec -type f -exec chmod +x {} \;
-RULES_FILE="iio-sensor-proxy/usr/lib/udev/rules.d/80-iio-sensor-proxy.rules"
+find packages/iio-sensor-proxy/usr/bin -type f -exec chmod +x {} \;
+find packages/iio-sensor-proxy/usr/libexec -type f -exec chmod +x {} \;
+RULES_FILE="packages/iio-sensor-proxy/usr/lib/udev/rules.d/80-iio-sensor-proxy.rules"
 if [ -f "$RULES_FILE" ]; then
     sed -i 's/ssc-light ssc-compass/ssc-light ssc-compass ssc-accel ssc-proximity/' "$RULES_FILE"
 fi
@@ -260,24 +256,25 @@ fi  # ! is_kernel_only
 echo "🔧 正在进行 UsrMerge 路径手术"
 
 # 对所有可能包含 /lib 目录的包进行自动化修正
-for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng fastrpc ppd-arm-sync; do
+for pkg in packages/firmware-xiaomi-sheng packages/alsa-xiaomi-sheng packages/linux-xiaomi-sheng packages/fastrpc packages/ppd-arm-sync; do
     if [ -d "$pkg/lib" ]; then
         echo "✅ 正在将 $pkg 中的 /lib 迁移至 /usr/lib"
         mkdir -p "$pkg/usr"
         mv "$pkg/lib" "$pkg/usr/"
     fi
 done
-
-
-build_deb linux-xiaomi-sheng
-build_deb firmware-xiaomi-sheng
-build_deb alsa-xiaomi-sheng
-build_deb sheng-devauth
-build_deb fastrpc
-build_deb ppd-arm-sync
+# ==========================================
+# 8. 打包组件
+# ==========================================
+build_deb packages/linux-xiaomi-sheng
+build_deb packages/firmware-xiaomi-sheng
+build_deb packages/alsa-xiaomi-sheng
+build_deb packages/sheng-devauth
+build_deb packages/fastrpc
+build_deb packages/ppd-arm-sync
 if [ "${IS_ARM64:-0}" -eq 1 ]; then
-    build_deb iio-sensor-proxy
+    build_deb packages/iio-sensor-proxy
 fi
-build_deb sheng-sensors
+build_deb packages/sheng-sensors
 
 echo "🎉 所有任务圆满完成！"

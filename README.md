@@ -82,7 +82,7 @@
 如果你想快速了解安装流程，概览如下（详细操作请务必阅读 Wiki）：
 
 1. 解锁 bootloader，确保仅有 Android 系统
-2. 下载 `rootfs` 和 `boot` 镜像，以及 `parted` 工具
+2. 下载 `rootfs` 和 `boot` 镜像，`TWRP` 从 [map220v 发布页](https://github.com/map220v/android_device_xiaomi_sheng/releases) 获取，`parted` 工具在项目的 `tools` 文件夹里
 3. 通过 TWRP 和 `parted` 重分区（删除 userdata，新建 userdata + linux）
 4. 刷写镜像到槽位 B：`fastboot flash boot_b` 和 `fastboot flash linux`
 5. 激活槽位 B 并重启
