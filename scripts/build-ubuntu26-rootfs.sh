@@ -23,7 +23,7 @@ UBUNTU_SUITE="${3:-resolute}"
 USERNAME="${4:-xiaomi}"
 PASSWORD="${5:-xiaomi}"
 if [[ ! "$UBUNTU_SUITE" =~ ^(resolute)$ ]]; then
-    echo "❌ 不支持的 Ubuntu 版本: $UBUNTU_SUITE (仅支持 resolute)"
+    echo " 不支持的 Ubuntu 版本: $UBUNTU_SUITE (仅支持 resolute)"
     exit 1
 fi
 
@@ -42,6 +42,35 @@ fi
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="ubuntu_${UBUNTU_SUITE}_${DESKTOP_ENV}_${TIMESTAMP}.img"
+
+# ==========================================
+# 挂载点清理
+# ==========================================
+cleanup_mounts() {
+    echo "🧹 正在卸载挂载点..."
+    local RD="rootdir"
+
+    # 杀掉占用进程，防止 umount 失败
+    if mountpoint -q "$RD" 2>/dev/null; then
+        fuser -k -9 -m "$RD" 2>/dev/null || true
+        sleep 0.5
+    fi
+
+    # 逆序卸载：先子挂载后父挂载
+    for mp in "$RD/dev/pts" "$RD/dev" "$RD/proc" "$RD/sys"; do
+        if mountpoint -q "$mp" 2>/dev/null; then
+            umount "$mp" 2>/dev/null || umount -l "$mp" 2>/dev/null || true
+        fi
+    done
+
+    # 最后卸载 rootdir（loop 设备）
+    if mountpoint -q "$RD" 2>/dev/null; then
+        umount "$RD" 2>/dev/null || umount -l "$RD" 2>/dev/null || true
+    fi
+
+    rm -rf "$RD"
+}
+trap cleanup_mounts EXIT ERR INT TERM
 
 echo "=========================================="
 echo "开始构建 Ubuntu ($UBUNTU_SUITE) RootFS"
@@ -71,7 +100,7 @@ printf "deb %s %s-security main restricted universe multiverse\n" "$UBUNTU_MIRRO
 chroot rootdir apt update
 
 # ========================================================
-# 🔧 修复点1：先安装系统核心依赖，再安装内核！
+#  修复点1：先安装系统核心依赖，再安装内核！
 # ========================================================
 chroot rootdir apt install -y --no-install-recommends \
     systemd sudo vim-tiny wget curl \
@@ -79,11 +108,11 @@ chroot rootdir apt install -y --no-install-recommends \
     wpasupplicant dbus kmod initramfs-tools \
     apt-transport-https ca-certificates chrony
 
-echo "⏱️ 正在启用 NTP 时间同步 (chrony)..."
+echo " 正在启用 NTP 时间同步 (chrony)..."
 chroot rootdir systemctl enable chrony
 
 if [ "$DESKTOP_ENV" != "server" ]; then
-    echo "🌏 正在安装 CJK 字体..."
+    echo " 正在安装 CJK 字体..."
     chroot rootdir apt install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei
 fi
 
@@ -96,7 +125,7 @@ if ls *.deb 1> /dev/null 2>&1; then
     echo "   正在强制更新内核模块依赖..."
     KERNEL_MODULE_DIR=$(ls rootdir/lib/modules/ | head -n 1)
     if [ -n "$KERNEL_MODULE_DIR" ]; then
-        echo "   ✅ 动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
+        echo "    动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
         chroot rootdir /sbin/depmod -a "$KERNEL_MODULE_DIR" || true
     fi
 fi
@@ -106,11 +135,11 @@ chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "sheng-ubuntu" > rootdir/etc/hostname
 
 # ========================================================
-# 📦 桌面环境分支流转 (去除一切文本写入，只留包安装)
+#  桌面环境分支流转 (去除一切文本写入，只留包安装)
 # ========================================================
 if [ "$DESKTOP_ENV" = "gnome" ]; then
     chroot rootdir apt install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal firefox gdm3 mesa-vulkan-drivers
-    echo "⌨️ 配置 IBus 输入法 (拼音 + RIME)..."
+    echo " 配置 IBus 输入法 (拼音 + RIME)..."
     chroot rootdir apt install -y --no-install-recommends ibus ibus-gtk3 ibus-libpinyin ibus-rime
     cat > rootdir/etc/environment <<EOF
 GTK_IM_MODULE=ibus
@@ -120,7 +149,7 @@ EOF
     DM="gdm3"
 elif [ "$DESKTOP_ENV" = "kde" ]; then
     chroot rootdir apt install -y --no-install-recommends plasma-desktop sddm konsole firefox plasma-workspace systemsettings discover packagekit mesa-vulkan-drivers
-    echo "⌨️ 配置 Fcitx5 输入法 (拼音 + RIME)..."
+    echo " 配置 Fcitx5 输入法 (拼音 + RIME)..."
     chroot rootdir apt install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-qt5 fcitx5-chinese-addons fcitx5-rime
     cat > rootdir/etc/environment <<EOF
 GTK_IM_MODULE=fcitx
@@ -130,7 +159,7 @@ EOF
     DM="sddm"
 elif [ "$DESKTOP_ENV" = "xfce" ]; then
     chroot rootdir apt install -y --no-install-recommends xfce4 xfce4-terminal lightdm lightdm-gtk-greeter firefox mousepad thunar mesa-vulkan-drivers
-    echo "⌨️ 配置 Fcitx5 输入法 (拼音 + RIME)..."
+    echo " 配置 Fcitx5 输入法 (拼音 + RIME)..."
     chroot rootdir apt install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-chinese-addons fcitx5-rime
     cat > rootdir/etc/environment <<EOF
 GTK_IM_MODULE=fcitx
@@ -139,7 +168,7 @@ XMODIFIERS=@im=fcitx
 EOF
     DM="lightdm"
 elif [ "$DESKTOP_ENV" = "server" ]; then
-    echo "🖥️ 配置无桌面服务器环境..."
+    echo " 配置无桌面服务器环境..."
     DM=""
 fi
 
@@ -153,7 +182,7 @@ else
 fi
 
 # ========================================================
-# ⚙️ 底层硬件自愈与触控校准
+#  底层硬件自愈与触控校准
 # ========================================================
 chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
 ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
@@ -164,9 +193,9 @@ mkdir -p rootdir/etc/udev/rules.d/
 printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
 
 # ========================================================
-# 📶 修复点2：移植高通 8 Gen 2 WiFi 修复逻辑
+#  修复点2：移植高通 8 Gen 2 WiFi 修复逻辑
 # ========================================================
-echo "⚙️ 正在预配置高通 WiFi 驱动适配与区域码..."
+echo " 正在预配置高通 WiFi 驱动适配与区域码..."
 chroot rootdir apt install -y qrtr-tools
 chroot rootdir systemctl enable qrtr-ns
 
@@ -174,7 +203,7 @@ chroot rootdir systemctl enable qrtr-ns
 echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.conf
 
 # ========================================================
-# 🔒 自动登录与桌面加固配置（完全展平，杜绝任何 case 嵌套漏洞）
+#  自动登录与桌面加固配置（完全展平，杜绝任何 case 嵌套漏洞）
 # ========================================================
 
 # 1. GNOME 配置
@@ -220,25 +249,21 @@ printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootd
 chroot rootdir apt clean
 chroot rootdir rm -rf /tmp/*.deb
 
-umount rootdir/dev/pts || true
-umount rootdir/dev || true
-umount rootdir/proc || true
-umount rootdir/sys || true
-umount rootdir || true
-rm -rf rootdir
+	cleanup_mounts
+	trap - EXIT ERR INT TERM
 
 tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
 
-echo "✅ 原始镜像生成完成: $ROOTFS_IMG"
+echo " 原始镜像生成完成: $ROOTFS_IMG"
 # ========================================================
-# ⚡ 修复点3：增加 sparse image 极速刷机转换
+#  修复点3：增加 sparse image 极速刷机转换
 # ========================================================
-echo "🔄 正在将其转换为 Fastboot 专用的稀疏镜像 (Sparse Image)..."
+echo " 正在将其转换为 Fastboot 专用的稀疏镜像 (Sparse Image)..."
 SPARSE_IMG="sparse_${ROOTFS_IMG}"
 img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
 
-echo "🗜️ 正在使用 zstd 压缩..."
+echo " 正在使用 zstd 压缩..."
 zstd -22 --ultra -T0 --long=31 "$SPARSE_IMG" -o "ubuntu_${UBUNTU_SUITE}_${DESKTOP_ENV}_${TIMESTAMP}.img.zst"
 
 rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
-echo "🎉 终极修砖版 Ubuntu 构建成功！"
+echo " 终极修砖版 Ubuntu 构建成功！"

@@ -16,7 +16,7 @@ if [ $# -lt 2 ] || [ $# -gt 6 ]; then
 fi
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "❌ 请使用 root 权限运行此脚本！"
+    echo " 请使用 root 权限运行此脚本！"
     exit 1
 fi
 
@@ -39,32 +39,32 @@ elif [ "$distro_segments" -eq 3 ]; then
     distro_version=$(echo "$DISTRO" | cut -d'-' -f2)
     distro_variant=$(echo "$DISTRO" | cut -d'-' -f3)
 else
-    echo "❌ 无法识别的发行版格式: $DISTRO"
+    echo " 无法识别的发行版格式: $DISTRO"
     echo "   支持格式: debian-<version>-<variant> (如 debian-forky-desktop)"
     echo "   向后兼容: debian-<variant> (默认 forky)"
     exit 1
 fi
 
 if [ "$distro_type" != "debian" ]; then
-    echo "❌ 目前仅支持 debian 衍生版"
+    echo " 目前仅支持 debian 衍生版"
     exit 1
 fi
 
 if [[ ! "$distro_version" =~ ^(trixie|forky)$ ]]; then
-    echo "❌ 不支持的 Debian 版本: $distro_version (仅支持 trixie, forky)"
+    echo " 不支持的 Debian 版本: $distro_version (仅支持 trixie, forky)"
     exit 1
 fi
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 # ==========================================
-# 🎛️ 动态解析构建矩阵 (二维循环引擎)
+#  动态解析构建矩阵 (二维循环引擎)
 # ==========================================
 if [ "$TARGET_MODE" = "all" ]; then
     BOOTMODES=("dual" "single")
 elif [[ "$TARGET_MODE" =~ ^(dual|single)$ ]]; then
     BOOTMODES=("$TARGET_MODE")
 else
-    echo "❌ 不支持的启动模式: $TARGET_MODE"
+    echo " 不支持的启动模式: $TARGET_MODE"
     exit 1
 fi
 
@@ -75,33 +75,46 @@ elif [ "$TARGET_FLAVOUR" = "all" ]; then
 elif [[ "$TARGET_FLAVOUR" =~ ^(gnome|kde)$ ]]; then
     FLAVOURS=("$TARGET_FLAVOUR")
 else
-    echo "❌ 不支持的桌面环境: $TARGET_FLAVOUR"
+    echo " 不支持的桌面环境: $TARGET_FLAVOUR"
     exit 1
 fi
 
 # ==========================================
-# 🛡️ 容错防线：挂载点清理
+#  容错防线：挂载点清理
 # ==========================================
 cleanup_mounts() {
-    echo "🧹 正在触发挂载点安全清理机制..."
-    fuser -k -9 -m rootdir 2>/dev/null || true
-    sleep 2
-    umount -l rootdir/dev/pts 2>/dev/null || true
-    umount -l rootdir/dev 2>/dev/null || true
-    umount -l rootdir/proc 2>/dev/null || true
-    umount -l rootdir/sys 2>/dev/null || true
-    umount -l rootdir 2>/dev/null || true
-    rm -rf rootdir
+    echo "🧹 正在卸载挂载点..."
+    local RD="rootdir"
+
+    # 杀掉占用进程，防止 umount 失败
+    if mountpoint -q "$RD" 2>/dev/null; then
+        fuser -k -9 -m "$RD" 2>/dev/null || true
+        sleep 0.5
+    fi
+
+    # 逆序卸载：先子挂载后父挂载
+    for mp in "$RD/dev/pts" "$RD/dev" "$RD/proc" "$RD/sys"; do
+        if mountpoint -q "$mp" 2>/dev/null; then
+            umount "$mp" 2>/dev/null || umount -l "$mp" 2>/dev/null || true
+        fi
+    done
+
+    # 最后卸载 rootdir（loop 设备）
+    if mountpoint -q "$RD" 2>/dev/null; then
+        umount "$RD" 2>/dev/null || umount -l "$RD" 2>/dev/null || true
+    fi
+
+    rm -rf "$RD"
 }
 trap cleanup_mounts EXIT ERR INT TERM
 
-# 🚀 启动二维构建矩阵 (桌面 x 模式)
+#  启动二维构建矩阵 (桌面 x 模式)
 for FLAVOUR in "${FLAVOURS[@]}"; do
     for MODE in "${BOOTMODES[@]}"; do
 
         echo ""
         echo "======================================================"
-        echo "🔥 开始构建: Debian $distro_version | 类型: ${FLAVOUR} | 模式: $MODE"
+        echo " 开始构建: Debian $distro_version | 类型: ${FLAVOUR} | 模式: $MODE"
         echo "======================================================"
 
         ROOTFS_IMG="${distro_type}_${distro_version}_${FLAVOUR}_${MODE}_${TIMESTAMP}.img"
@@ -113,7 +126,7 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         mkfs.ext4 -O ^metadata_csum "$ROOTFS_IMG"
         mount -o loop "$ROOTFS_IMG" rootdir
 
-        echo "⬇️ 正在使用 debootstrap 拉取基础系统..."
+        echo " 正在使用 debootstrap 拉取基础系统..."
         debootstrap --arch=arm64 "$distro_version" rootdir http://deb.debian.org/debian/
 
         mount --bind /dev rootdir/dev
@@ -126,18 +139,18 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
         echo "nameserver 223.5.5.5" >> rootdir/etc/resolv.conf
 
-        echo "📦 正在安装基础环境组件..."
+        echo " 正在安装基础环境组件..."
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog apt-transport-https ca-certificates chrony"
 
-        echo "⏱️ 正在启用 NTP 时间同步 (chrony)..."
+        echo " 正在启用 NTP 时间同步 (chrony)..."
         chroot rootdir systemctl enable chrony
 
         if [ "$distro_variant" != "server" ]; then
-            echo "🌏 正在安装 CJK 字体..."
+            echo " 正在安装 CJK 字体..."
             chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei"
         fi
 
-        echo "📦 正在注入设备专属 .deb 驱动包 (由工作流预下载)..."
+        echo " 正在注入设备专属 .deb 驱动包 (由工作流预下载)..."
         cp *.deb rootdir/tmp/
 
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends initramfs-tools"
@@ -147,15 +160,15 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         echo "sheng-debian" > rootdir/etc/hostname
 
         # =========================
-        # 📶 WiFi 驱动适配与区域码
+        #  WiFi 驱动适配与区域码
         # =========================
-        echo "⚙️ 正在预配置高通 WiFi 驱动适配与区域码..."
+        echo " 正在预配置高通 WiFi 驱动适配与区域码..."
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends qrtr-tools"
         chroot rootdir systemctl enable qrtr-ns
         echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.conf
 
         # =========================
-        # 🖥️ 桌面环境分发中心
+        #  桌面环境分发中心
         # =========================
         if [ "$distro_variant" = "desktop" ]; then
             chroot rootdir useradd -m -s /bin/bash ${USERNAME}
@@ -163,9 +176,9 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
             chroot rootdir usermod -aG sudo,audio,video,input ${USERNAME}
 
             if [ "$FLAVOUR" = "gnome" ]; then
-                echo "🖥️ 安装 GNOME 桌面环境..."
+                echo " 安装 GNOME 桌面环境..."
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends gnome-core gnome-terminal gdm3 firefox-esr mesa-vulkan-drivers"
-                echo "⌨️ 配置 IBus 输入法 (拼音 + RIME)..."
+                echo " 配置 IBus 输入法 (拼音 + RIME)..."
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends ibus ibus-gtk3 ibus-libpinyin ibus-rime"
                 cat > rootdir/etc/environment <<EOF
 GTK_IM_MODULE=ibus
@@ -181,11 +194,11 @@ AutomaticLogin=${USERNAME}
 EOF
 
             elif [ "$FLAVOUR" = "kde" ]; then
-                # 🚨 重点修改在这里：采纳了你的方案！
-                echo "🖥️ 安装 KDE Plasma 桌面环境 (使用官方 kde-standard 方案)..."
+                #  重点修改在这里：采纳了你的方案！
+                echo " 安装 KDE Plasma 桌面环境 (使用官方 kde-standard 方案)..."
                 # 直接拉取 kde-standard (取代零碎包)，附加上你脚本里提取的网络和蓝牙插件
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends plasma-desktop sddm konsole firefox-esr plasma-workspace systemsettings plasma-nm mesa-vulkan-drivers"
-                echo "⌨️ 配置 Fcitx5 输入法 (拼音 + RIME)..."
+                echo " 配置 Fcitx5 输入法 (拼音 + RIME)..."
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-qt5 fcitx5-chinese-addons fcitx5-rime"
                 cat > rootdir/etc/environment <<EOF
 GTK_IM_MODULE=fcitx
@@ -205,7 +218,7 @@ EOF
             chroot rootdir systemctl set-default graphical.target
 
         elif [ "$distro_variant" = "server" ]; then
-            echo "🖥️ 配置无桌面服务器环境..."
+            echo " 配置无桌面服务器环境..."
             chroot rootdir useradd -m -s /bin/bash ${USERNAME}
             chroot rootdir bash -c "echo '${USERNAME}:${PASSWORD}' | chpasswd"
             chroot rootdir usermod -aG sudo ${USERNAME}
@@ -215,7 +228,7 @@ EOF
         fi
 
         # =========================
-        # 💽 FSTAB 挂载策略
+        #  FSTAB 挂载策略
         # =========================
         if [ "$MODE" = "dual" ]; then
             echo "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1" > rootdir/etc/fstab
@@ -223,23 +236,23 @@ EOF
             echo "PARTLABEL=userdata / ext4 defaults,noatime,errors=remount-ro 0 1" > rootdir/etc/fstab
         fi
 
-        echo "🧹 清理场地准备打包..."
+        echo " 清理场地准备打包..."
         chroot rootdir apt-get clean
         rm -f rootdir/tmp/*.deb
         cleanup_mounts
 
         tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
 
-        echo "🔄 转换 Sparse 镜像并压缩..."
+        echo " 转换 Sparse 镜像并压缩..."
         SPARSE_IMG="sparse_${ROOTFS_IMG}"
         img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
         zstd -22 --ultra -T0 --long=31 "$SPARSE_IMG" -o "${ROOTFS_IMG}.zst"
         rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
         
-        echo "🎉 [${FLAVOUR^^} - $MODE] 版本完成！"
+        echo " [${FLAVOUR^^} - $MODE] 版本完成！"
 
     done
 done
 
 trap - EXIT ERR INT TERM
-echo "✅ Debian 镜像已打包完毕！"
+echo " Debian 镜像已打包完毕！"

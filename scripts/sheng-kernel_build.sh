@@ -20,12 +20,12 @@ usage() {
 }
 
 if [ $# -lt 1 ]; then
-    echo "❌ 缺少内核版本号参数"
+    echo " 缺少内核版本号参数"
     usage
 fi
 
 KERNEL_VERSION="$1"
-echo "🔧 内核版本: ${KERNEL_VERSION}"
+echo " 内核版本: ${KERNEL_VERSION}"
 echo "   Git 分支: sheng-${KERNEL_VERSION}"
 echo "   配置标签: ${KERNEL_VERSION}"
 
@@ -52,18 +52,18 @@ log_exec() {
 build_deb() {
     local pkg="$1"
     if is_kernel_only && [ "$pkg" != "packages/linux-xiaomi-sheng" ]; then
-        echo "⏭️ KERNEL_ONLY=1，跳过 $pkg 打包"
+        echo " KERNEL_ONLY=1，跳过 $pkg 打包"
     else
         log_exec dpkg-deb --build --root-owner-group -Zzstd -z10 "$pkg"
     fi
 }
 
 if is_kernel_only; then
-    echo "⚡ KERNEL_ONLY=1，仅编译内核+模块+boot.img，仅打包 linux-xiaomi-sheng.deb"
+    echo " KERNEL_ONLY=1，仅编译内核+模块+boot.img，仅打包 linux-xiaomi-sheng.deb"
 fi
 
 if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
-    echo "📝 构建日志: $LOG_FILE"
+    echo " 构建日志: $LOG_FILE"
 fi
 
 # ==========================================
@@ -91,12 +91,12 @@ git clone https://github.com/ianchb/sm8550-mainline.git --branch sheng-${KERNEL_
 cd linux
 
 # ==========================================
-# 🛠️ 自动配置 (跳过所有交互式菜单)
+#  自动配置 (跳过所有交互式菜单)
 # ==========================================
-echo "⚙️ 正在应用并强行补全配置..."
+echo " 正在应用并强行补全配置..."
 log_exec wget -O .config https://github.com/ianchb/sm8550-mainline/releases/download/${KERNEL_VERSION}/sm8550.config
 
-# 🔥 启用 Clang ThinLTO 优化 (编译加速 + 运行时性能提升)
+#  启用 Clang ThinLTO 优化 (编译加速 + 运行时性能提升)
 ./scripts/config --disable LTO_NONE --enable LTO_CLANG_THIN
 
 log_exec make ARCH=arm64 CC="ccache clang" LLVM=1 olddefconfig
@@ -105,7 +105,7 @@ log_exec make ARCH=arm64 CC="ccache clang" LLVM=1 olddefconfig
 # ==========================================
 # 5. 执行多线程编译
 # ==========================================
-echo "🔨 开始极速编译..."
+echo " 开始极速编译..."
 log_exec make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
 
@@ -151,13 +151,13 @@ if [ "$(uname -m)" = "aarch64" ]; then
 fi
 
 if is_kernel_only; then
-    echo "⏭️ KERNEL_ONLY=1，跳过外围组件构建 (fastrpc, libssc, iio-sensor-proxy, mipps-auth)"
+    echo " KERNEL_ONLY=1，跳过外围组件构建 (fastrpc, libssc, iio-sensor-proxy, mipps-auth)"
 else
 
 # ==========================================
 # 7.1 构建 fastrpc
 # ==========================================
-echo "📦 构建 fastrpc..."
+echo " 构建 fastrpc..."
 log_exec wget -q https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.6.zip
 log_exec unzip -qo v1.0.6.zip
 cd fastrpc-1.0.6
@@ -176,11 +176,11 @@ find packages/fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 # ==========================================
 
 if [ "$IS_ARM64" -eq 0 ]; then
-    echo "⏭️ 非 arm64 deb系环境，跳过 libssc 和 iio-sensor-proxy 构建"
+    echo " 非 arm64 deb系环境，跳过 libssc 和 iio-sensor-proxy 构建"
 else
 
 # --- libssc ---
-echo "📦 构建 libssc (Qualcomm Sensor Core)..."
+echo " 构建 libssc (Qualcomm Sensor Core)..."
 git clone https://codeberg.org/DylanVanAssche/libssc.git --depth 1 libssc-src
 cd libssc-src
 # 打补丁：等待 QMI 服务就绪
@@ -202,7 +202,7 @@ fi
 sudo ldconfig
 
 # --- iio-sensor-proxy ---
-echo "📦 构建 iio-sensor-proxy (SSC 支持)..."
+echo " 构建 iio-sensor-proxy (SSC 支持)..."
 if ! pkg-config --exists udev && pkg-config --exists libudev; then
     PC_DIR=$(pkg-config --variable=pc_path pkg-config 2>/dev/null | cut -d: -f1)
     if [ -f "$PC_DIR/libudev.pc" ] && [ ! -f "$PC_DIR/udev.pc" ]; then
@@ -242,23 +242,23 @@ fi  # IS_ARM64
 # ==========================================
 # 7.3 获取 xiaomi-mipps-auth
 # ==========================================
-echo "📥 正在下载 xiaomi-mipps-auth 最新版本..."
+echo " 正在下载 xiaomi-mipps-auth 最新版本..."
 MIPPS_URL=$(wget -qO- https://api.github.com/repos/ianchb/xiaomi-mipps-auth/releases/latest | grep -o '"browser_download_url": "[^"]*\.deb"' | head -1 | cut -d'"' -f4)
 if [ -n "$MIPPS_URL" ]; then
     wget -q "$MIPPS_URL"
-    echo "✅ xiaomi-mipps-auth 下载完成"
+    echo " xiaomi-mipps-auth 下载完成"
 else
-    echo "⚠️ 未找到 xiaomi-mipps-auth .deb，跳过"
+    echo " 未找到 xiaomi-mipps-auth .deb，跳过"
 fi
 
 fi  # ! is_kernel_only
 
-echo "🔧 正在进行 UsrMerge 路径手术"
+echo " 正在进行 UsrMerge 路径手术"
 
 # 对所有可能包含 /lib 目录的包进行自动化修正
 for pkg in packages/firmware-xiaomi-sheng packages/alsa-xiaomi-sheng packages/linux-xiaomi-sheng packages/fastrpc packages/ppd-arm-sync; do
     if [ -d "$pkg/lib" ]; then
-        echo "✅ 正在将 $pkg 中的 /lib 迁移至 /usr/lib"
+        echo " 正在将 $pkg 中的 /lib 迁移至 /usr/lib"
         mkdir -p "$pkg/usr"
         mv "$pkg/lib" "$pkg/usr/"
     fi
@@ -277,4 +277,4 @@ if [ "${IS_ARM64:-0}" -eq 1 ]; then
 fi
 build_deb packages/sheng-sensors
 
-echo "🎉 所有任务圆满完成！"
+echo " 所有任务圆满完成！"
