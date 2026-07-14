@@ -8,6 +8,10 @@ on:
         required: true
         type: string
         default: '7.1.0'
+      trigger_bundle:
+        description: '构建完成后触发 Build Kernel Bundle'
+        type: boolean
+        default: true
 
 jobs:
   build:
@@ -37,13 +41,7 @@ jobs:
         run: |
           echo "⚙️ 正在安装必要的构建工具..."
           sudo apt update
-          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils unzip autoconf automake libtool libyaml-dev libbsd-dev ninja-build pkg-config python3 python3-pip libglib2.0-dev libprotobuf-c-dev libqmi-glib-dev libmbim-glib-dev libgudev-1.0-dev libpolkit-gobject-1-dev libsystemd-dev libdbus-1-dev protobuf-compiler protobuf-c-compiler
-
-          python3 -m pip install --user --upgrade pip
-          python3 -m pip install --user "meson>=1.4.0"
-          # 确保优先使用 pip 安装的 meson
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          export PATH="$HOME/.local/bin:$PATH"
+          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils unzip systemd-ukify systemd-boot-efi
 
           echo "✅ 构建工具安装完成"
 
@@ -67,8 +65,8 @@ jobs:
           # 所有的卡死修复和报错剔除都已经写在脚本里了
           # 这里直接无脑运行即可！
           # ==========================================
-          chmod +x scripts/sheng-kernel_build.sh
-          bash scripts/sheng-kernel_build.sh "${{ github.event.inputs.kernel_version }}"
+          chmod +x scripts/sheng-kernel-build.sh
+          bash scripts/sheng-kernel-build.sh "${{ github.event.inputs.kernel_version }}"
 
           echo "✅ 内核编译完成"
           ccache --show-stats || true
@@ -83,10 +81,10 @@ jobs:
         id: collect_artifacts
         run: |
           echo "::group::Debian 包 (.deb)"
-          PKG_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
+          PKG_COUNT=$(ls -1 packages/*.deb 2>/dev/null | wc -l)
           if [ "$PKG_COUNT" -gt 0 ]; then
             echo "📦 共找到 $PKG_COUNT 个 Debian 包文件:"
-            ls -lh *.deb
+            ls -lh packages/*.deb
           else
             echo "❌ ERROR: 未找到任何 .deb 文件！"
             exit 1
@@ -116,7 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unified-kernel-debs-${{ github.event.inputs.kernel_version }}
-          path: "*.deb"
+          path: "packages/*.deb"
           retention-days: 7
           if-no-files-found: error
 
@@ -127,6 +125,12 @@ jobs:
           path: |
             boot_sheng_singleboot.img
             boot_sheng_dualboot.img
+
+      - name: "📤 上传 UKI EFI 文件"
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootaa64.efi
+          path: bootaa64.efi
 
       - name: "🏷️ 自动发布 GitHub Release"
         if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
@@ -140,8 +144,17 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            *.deb
+            packages/*.deb
             *.img
+            *.efi
           generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "🔗 触发 Build Kernel Bundle"
+        if: github.event.inputs.trigger_bundle == 'true'
+        run: |
+          gh workflow run build-kernel-bundle.yml --ref "$GITHUB_REF_NAME"
+          echo "✅ 已触发 Build Kernel Bundle"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

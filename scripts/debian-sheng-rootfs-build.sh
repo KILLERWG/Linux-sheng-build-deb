@@ -180,38 +180,20 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends gnome-core gnome-terminal gdm3 firefox-esr mesa-vulkan-drivers"
                 echo " 配置 IBus 输入法 (拼音 + RIME)..."
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends ibus ibus-gtk3 ibus-libpinyin ibus-rime"
-                cat > rootdir/etc/environment <<EOF
-GTK_IM_MODULE=ibus
-QT_IM_MODULE=ibus
-XMODIFIERS=@im=ibus
-EOF
                 chroot rootdir systemctl enable gdm3
-                mkdir -p rootdir/etc/gdm3
-                cat > rootdir/etc/gdm3/daemon.conf <<EOF
-[daemon]
-AutomaticLoginEnable=true
-AutomaticLogin=${USERNAME}
-EOF
 
             elif [ "$FLAVOUR" = "kde" ]; then
-                #  重点修改在这里：采纳了你的方案！
-                echo " 安装 KDE Plasma 桌面环境 (使用官方 kde-standard 方案)..."
-                # 直接拉取 kde-standard (取代零碎包)，附加上你脚本里提取的网络和蓝牙插件
+                echo " 安装 KDE Plasma 桌面环境..."
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends plasma-desktop sddm konsole firefox-esr plasma-workspace systemsettings plasma-nm mesa-vulkan-drivers"
                 echo " 配置 Fcitx5 输入法 (拼音 + RIME)..."
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-qt5 fcitx5-chinese-addons fcitx5-rime"
-                cat > rootdir/etc/environment <<EOF
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-EOF
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-frontend-qt6 fcitx5-chinese-addons fcitx5-rime fcitx5-module-wayland fcitx5-module-kimpanel kde-config-fcitx5"
+
+                if [ "$distro_version" = "forky" ]; then
+                    echo " 安装 Plasma Keyboard (forky)..."
+                    chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends plasma-keyboard"
+                fi
+
                 chroot rootdir systemctl enable sddm
-                mkdir -p rootdir/etc/sddm.conf.d
-                cat > rootdir/etc/sddm.conf.d/autologin.conf <<EOF
-[Autologin]
-User=${USERNAME}
-Session=plasma
-EOF
             fi
 
             chroot rootdir systemctl enable NetworkManager
@@ -226,6 +208,16 @@ EOF
             chroot rootdir systemctl enable ssh
             chroot rootdir systemctl set-default multi-user.target
         fi
+
+        # =========================
+        #  写入配置文件 (委托给 provision 脚本)
+        # =========================
+        env -i \
+            ROOTFS_DIR="$PWD/rootdir" \
+            FLAVOUR="$FLAVOUR" \
+            DISTRO_VERSION="$distro_version" \
+            USERNAME="$USERNAME" \
+            bash scripts/sheng-debian-provision.sh
 
         # =========================
         #  FSTAB 挂载策略

@@ -1,0 +1,84 @@
+name: Build Kernel Bundle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: "构建固件/传感器组件"
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+    steps:
+      - name: "📥 检出代码"
+        uses: actions/checkout@v4
+
+      - name: "🔧 部署构建环境"
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            build-essential autoconf automake libtool \
+            clang lld \
+            pkg-config ninja-build \
+            libglib2.0-dev libprotobuf-c-dev libqmi-glib-dev libmbim-glib-dev \
+            libgudev-1.0-dev libpolkit-gobject-1-dev \
+            libsystemd-dev libdbus-1-dev \
+            protobuf-compiler protobuf-c-compiler \
+            libyaml-dev libbsd-dev \
+            wget unzip zstd python3 python3-pip
+
+          python3 -m pip install --user --upgrade pip
+          python3 -m pip install --user "meson>=1.4.0"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+          echo "✅ 构建工具安装完成"
+
+      - name: "🔨 构建固件组件"
+        run: |
+          chmod +x scripts/sheng-firmware-build.sh
+          bash scripts/sheng-firmware-build.sh
+          echo "✅ 固件组件构建完成"
+
+      - name: "📦 收集产物"
+        id: collect
+        run: |
+          echo "::group::设备 .deb 包"
+          PKG_COUNT=$(ls -1 packages/*.deb 2>/dev/null | wc -l)
+          if [ "$PKG_COUNT" -gt 0 ]; then
+            echo "📦 共找到 $PKG_COUNT 个包:"
+            ls -lh packages/*.deb
+          else
+            echo "❌ ERROR: 未找到任何 .deb 文件！"
+            exit 1
+          fi
+          echo "::endgroup::"
+          echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
+
+      - name: "🏷️ 生成 Release 标签"
+        id: tag
+        run: |
+          echo "release_tag=kernel-bundle" >> $GITHUB_OUTPUT
+          echo "Release 标签: kernel-bundle"
+
+      - name: "📤 上传 Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-bundle-debs
+          path: "packages/*.deb"
+          retention-days: 7
+
+      - name: "🏷️ 发布 GitHub Release"
+        if: steps.collect.outputs.pkg_count > 0
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          name: "Kernel Bundle"
+          files: "packages/*.deb"
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

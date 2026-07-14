@@ -135,37 +135,24 @@ chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "sheng-ubuntu" > rootdir/etc/hostname
 
 # ========================================================
-#  桌面环境分支流转 (去除一切文本写入，只留包安装)
+#  桌面环境分支流转 (包安装)
 # ========================================================
 if [ "$DESKTOP_ENV" = "gnome" ]; then
     chroot rootdir apt install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal firefox gdm3 mesa-vulkan-drivers
     echo " 配置 IBus 输入法 (拼音 + RIME)..."
     chroot rootdir apt install -y --no-install-recommends ibus ibus-gtk3 ibus-libpinyin ibus-rime
-    cat > rootdir/etc/environment <<EOF
-GTK_IM_MODULE=ibus
-QT_IM_MODULE=ibus
-XMODIFIERS=@im=ibus
-EOF
     DM="gdm3"
 elif [ "$DESKTOP_ENV" = "kde" ]; then
     chroot rootdir apt install -y --no-install-recommends plasma-desktop sddm konsole firefox plasma-workspace systemsettings discover packagekit mesa-vulkan-drivers
     echo " 配置 Fcitx5 输入法 (拼音 + RIME)..."
-    chroot rootdir apt install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-qt5 fcitx5-chinese-addons fcitx5-rime
-    cat > rootdir/etc/environment <<EOF
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-EOF
+    chroot rootdir apt install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-frontend-qt6 fcitx5-chinese-addons fcitx5-rime fcitx5-module-wayland fcitx5-module-kimpanel kde-config-fcitx5
+    echo " 配置 Plasma Keyboard..."
+    chroot rootdir apt install -y --no-install-recommends plasma-keyboard
     DM="sddm"
 elif [ "$DESKTOP_ENV" = "xfce" ]; then
     chroot rootdir apt install -y --no-install-recommends xfce4 xfce4-terminal lightdm lightdm-gtk-greeter firefox mousepad thunar mesa-vulkan-drivers
     echo " 配置 Fcitx5 输入法 (拼音 + RIME)..."
     chroot rootdir apt install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-chinese-addons fcitx5-rime
-    cat > rootdir/etc/environment <<EOF
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-EOF
     DM="lightdm"
 elif [ "$DESKTOP_ENV" = "server" ]; then
     echo " 配置无桌面服务器环境..."
@@ -182,55 +169,40 @@ else
 fi
 
 # ========================================================
-#  底层硬件自愈与触控校准
+#  写入配置文件 (委托给 provision 脚本)
 # ========================================================
-chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
+env -i \
+    ROOTFS_DIR="$PWD/rootdir" \
+    DESKTOP_ENV="$DESKTOP_ENV" \
+    USERNAME="$USERNAME" \
+    bash scripts/sheng-ubuntu-provision.sh
+
+# ========================================================
+#  底层硬件自愈
+# ========================================================
 ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
 chroot rootdir systemctl enable systemd-resolved
 ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 
-mkdir -p rootdir/etc/udev/rules.d/
-printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
-
 # ========================================================
-#  修复点2：移植高通 8 Gen 2 WiFi 修复逻辑
+#  WiFi 驱动适配
 # ========================================================
 echo " 正在预配置高通 WiFi 驱动适配与区域码..."
 chroot rootdir apt install -y qrtr-tools
 chroot rootdir systemctl enable qrtr-ns
-
-# WiFi 区域码 (5GHz 频段支持)
 echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.conf
 
 # ========================================================
-#  自动登录与桌面加固配置（完全展平，杜绝任何 case 嵌套漏洞）
+#  DM 启用
 # ========================================================
-
-# 1. GNOME 配置
 if [ "$DM" = "gdm3" ]; then
-    mkdir -p rootdir/etc/gdm3
-    printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=${USERNAME}\n" > rootdir/etc/gdm3/daemon.conf
     chroot rootdir systemctl enable gdm3
-fi
-
-# 2. KDE 防息屏加固与自动登录
-if [ "$DM" = "sddm" ]; then
-    mkdir -p rootdir/etc/sddm.conf.d
-    printf "[Autologin]\nUser=${USERNAME}\nSession=plasma\n" > rootdir/etc/sddm.conf.d/autologin.conf
-    
+elif [ "$DM" = "sddm" ]; then
     if chroot rootdir id -u sddm >/dev/null 2>&1; then
         chroot rootdir usermod -aG video,render,input sddm || true
     fi
-    
-    mkdir -p rootdir/etc/xdg
-    printf "[PowerManagement]\nScreenBlanking=false\nDisplaySleep=0\n" > rootdir/etc/xdg/plasmarc
     chroot rootdir systemctl enable sddm
-fi
-
-# 3. XFCE 配置
-if [ "$DM" = "lightdm" ]; then
-    mkdir -p rootdir/etc/lightdm/lightdm.conf.d
-    printf "[Seat:*]\nautologin-user=${USERNAME}\nautologin-user-timeout=0\n" > rootdir/etc/lightdm/lightdm.conf.d/autologin.conf
+elif [ "$DM" = "lightdm" ]; then
     chroot rootdir systemctl enable lightdm
 fi
 
