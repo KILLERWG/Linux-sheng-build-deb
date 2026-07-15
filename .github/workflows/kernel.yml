@@ -139,7 +139,7 @@ jobs:
           tag_name: kernel-${{ github.event.inputs.kernel_version }}
           name: "Kernel v${{ github.event.inputs.kernel_version }}"
           body: |
-            **小米Pad6spro通用内核 v${{ github.event.inputs.kernel_version }}**
+              **Xiaomi Pad 6S Pro Kernel,boot,uefi (uefi test) v${{ github.event.inputs.kernel_version }}**
 
           draft: false
           prerelease: false
