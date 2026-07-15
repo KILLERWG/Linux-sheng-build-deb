@@ -4,17 +4,8 @@
 
 我们不承担以下任何情况的责任：
 - 设备变砖、恢复分区丢失
-- 存储卡、电源管理芯片、内存、显示芯片、CPU 损坏
-- 小米的任何意外操作
-- 宠物或人员伤亡、核战争
-- 因忘记切回 Android 导致闹钟未响而被解雇
-- 地震海啸等任何自然灾害
-- 刷机刷一半没吃饭饿死了
-- 刷机刷一半没喝水渴死了
-- 刷机刷一半忘记吸氧憋死了
-- 因变砖引发任何疾病死了
-- 因给我提Issues没有人回复气死了
-- 等各种各样的原因
+- 硬件损坏（存储、电源管理、显示芯片、CPU 等）
+- 因忘记切回 Android 导致闹钟未响等一切后果
 
 本仓库中的所有文件均由社区用户贡献。提供的指南及文件均为“按现状”提供，**请自行承担使用风险**，并严格遵循每一步骤。
 
@@ -33,7 +24,7 @@
 |核心|键盘/触摸板|部分正常|官方键盘有概率无响应，需要重新与触点连接|
 |连接|Wi-Fi|正常|部分地区需要设置wifi区域码才能正常使用5GHz Wifi|
 |连接|蓝牙|正常||
-|连接|Type-C|部分正常|Type-C与键盘触点冲突，官方键盘需要重新与触点连接才能正常检测|
+|连接|Type-C|正常||
 |多媒体|音频/相机|正常|相机效果劣于Android|
 |传感器|全部|正常|自动旋转/亮度/霍尔等|
 |手写笔|测试|故障|只有笔充电可用，充电修复来自[xiaomi-pen-status](https://github.com/ianchb/xiaomi-pen-status)|
@@ -68,14 +59,6 @@
 | [steam安装教程](https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/wiki/steam) | 适用于linux arm64的steam安装教程
 
 ---
-
-## 🎥 软件测试视频
-
-[小米pad6spro Debian启动！-哔哩哔哩](https://www.bilibili.com/video/BV1za5g6wEx8)
-
-[小米pad6spro debian hangover wine+dxvk测试-哔哩哔哩](https://www.bilibili.com/video/BV1Be5y6ZEiK)
-
-[小米pad6spro debian蓝牙手柄+vulkan小游戏测试-哔哩哔哩](https://www.bilibili.com/video/BV1rg516PEWt)
 
 ## 📝 快速预览（核心步骤）
 
