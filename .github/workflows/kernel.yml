@@ -205,8 +205,6 @@ jobs:
     needs: [build-kernel, build-bundle]
     if: |
       always() &&
-      (needs.build-kernel.result == 'success' || needs.build-kernel.result == 'skipped') &&
-      (needs.build-bundle.result == 'success' || needs.build-bundle.result == 'skipped') &&
       (needs.build-kernel.result == 'success' || needs.build-bundle.result == 'success')
 
     steps:

@@ -27,7 +27,7 @@
 |连接|Type-C|正常||
 |多媒体|音频/相机|正常|相机效果劣于Android|
 |传感器|全部|正常|自动旋转/亮度/霍尔等|
-|手写笔|测试|故障|只有笔充电可用，充电修复来自[xiaomi-pen-status](https://github.com/ianchb/xiaomi-pen-status)|
+||手写笔|正常|需要配合7.1.3-thp-wip内核版本和[xiaomi-sheng-thp](https://github.com/ianchb/xiaomi-sheng-thp) 软件包使用|
 
 > 完整功能状态表请查阅 [PostmarketOS wiki](https://wiki.postmarketos.org/wiki/Xiaomi_Pad_6S_Pro_12.4_(xiaomi-sheng))
 
