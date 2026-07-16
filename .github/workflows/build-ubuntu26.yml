@@ -89,7 +89,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install build tools
-        run: sudo apt update && sudo apt install -y debootstrap libarchive-tools zstd curl wget android-sdk-libsparse-utils
+        run: sudo apt -o Acquire::ForceIPv4=true update && sudo apt -o Acquire::ForceIPv4=true install -y debootstrap libarchive-tools zstd curl wget android-sdk-libsparse-utils
 
       - name: Download kernel and sensor packages
         run: |

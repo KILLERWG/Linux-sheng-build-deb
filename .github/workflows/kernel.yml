@@ -44,8 +44,8 @@ jobs:
       - name: "🔧 部署 LLVM 交叉编译环境"
         run: |
           echo "⚙️ 正在安装必要的构建工具..."
-          sudo apt update
-          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils unzip systemd-ukify systemd-boot-efi
+          sudo apt -o Acquire::ForceIPv4=true update
+          sudo apt -o Acquire::ForceIPv4=true install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils unzip systemd-ukify systemd-boot-efi
 
           echo "✅ 构建工具安装完成"
 
@@ -149,8 +149,8 @@ jobs:
 
       - name: "🔧 部署构建环境"
         run: |
-          sudo apt update
-          sudo apt install -y \
+          sudo apt -o Acquire::ForceIPv4=true update
+          sudo apt -o Acquire::ForceIPv4=true install -y \
             build-essential autoconf automake libtool \
             clang lld \
             pkg-config ninja-build \

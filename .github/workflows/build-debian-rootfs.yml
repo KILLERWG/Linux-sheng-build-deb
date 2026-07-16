@@ -118,8 +118,8 @@ jobs:
 
       - name: "🔧 部署构建环境"
         run: |
-          sudo apt update
-          sudo apt install -y debootstrap libarchive-tools zstd curl wget android-sdk-libsparse-utils
+          sudo apt -o Acquire::ForceIPv4=true update
+          sudo apt -o Acquire::ForceIPv4=true install -y debootstrap libarchive-tools zstd curl wget android-sdk-libsparse-utils
 
       - name: Download kernel and sensor packages
         run: |
