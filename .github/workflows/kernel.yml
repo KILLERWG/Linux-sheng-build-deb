@@ -43,9 +43,23 @@ jobs:
 
       - name: "🔧 部署 LLVM 交叉编译环境"
         run: |
+          set -euo pipefail
           echo "⚙️ 正在安装必要的构建工具..."
-          sudo apt -o Acquire::ForceIPv4=true update
-          sudo apt -o Acquire::ForceIPv4=true install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils unzip systemd-ukify systemd-boot-efi
+
+          # 统一使用 HTTPS 源，降低 HTTP 80 端口超时概率
+          sudo sed -i 's|http://ports.ubuntu.com/ubuntu-ports|https://ports.ubuntu.com/ubuntu-ports|g' /etc/apt/sources.list
+          sudo sed -i 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list || true
+
+          # CI 网络抖动容错
+          sudo tee /etc/apt/apt.conf.d/99-ci-network >/dev/null <<'EOF'
+          Acquire::Retries "6";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          Acquire::ForceIPv4 "true";
+          EOF
+
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils unzip systemd-ukify systemd-boot-efi
 
           echo "✅ 构建工具安装完成"
 
@@ -149,8 +163,20 @@ jobs:
 
       - name: "🔧 部署构建环境"
         run: |
-          sudo apt -o Acquire::ForceIPv4=true update
-          sudo apt -o Acquire::ForceIPv4=true install -y \
+          set -euo pipefail
+
+          sudo sed -i 's|http://ports.ubuntu.com/ubuntu-ports|https://ports.ubuntu.com/ubuntu-ports|g' /etc/apt/sources.list
+          sudo sed -i 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list || true
+
+          sudo tee /etc/apt/apt.conf.d/99-ci-network >/dev/null <<'EOF'
+          Acquire::Retries "6";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          Acquire::ForceIPv4 "true";
+          EOF
+
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing \
             build-essential autoconf automake libtool \
             clang lld \
             pkg-config ninja-build \
