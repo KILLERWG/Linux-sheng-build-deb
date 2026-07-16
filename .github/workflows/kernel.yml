@@ -276,13 +276,7 @@ jobs:
           body: |
             **Xiaomi Pad 6S Pro Kernel, boot, UEFI v${{ github.event.inputs.kernel_version }}**
 
-            ### 包含组件
-            - 内核 Image.gz + dtb + 模块
-            - 固件 (firmware-xiaomi-sheng, alsa-xiaomi-sheng, fastrpc, ppd-arm-sync, sheng-devauth, sheng-sensors)
-            - 传感器 (libssc, iio-sensor-proxy, 仅 arm64)
-            - 触摸屏 THP 用户态守护进程 (xiaomi-sheng-thp)
-            - 触控笔工具 (xiaomi-pen-status)
-            - 充电认证 (xiaomi-mipps-auth)
+  
           draft: false
           prerelease: false
           files: |
