@@ -142,13 +142,6 @@ jobs:
           path: bootaa64.efi
           retention-days: 7
 
-      - name: "📤 上传内核配置"
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-config
-          path: sm8550.config
-          retention-days: 7
-
   # ==========================================
   # Job 2: 固件/传感器组件 (与内核并行)
   # ==========================================
@@ -259,12 +252,6 @@ jobs:
           name: boot-efi
           path: artifacts/efi
 
-      - name: "📥 下载内核配置"
-        uses: actions/download-artifact@v4
-        with:
-          name: kernel-config
-          path: artifacts/config
-
       - name: "📦 合并产物"
         run: |
           echo "::group::最终产物列表"
@@ -276,7 +263,6 @@ jobs:
           find artifacts -name "*.deb" -exec cp {} publish/ \;
           find artifacts -name "*.img" -exec cp {} publish/ \;
           find artifacts -name "*.efi" -exec cp {} publish/ \;
-          find artifacts -name "sm8550.config" -exec cp {} publish/ \;
 
           echo "::group::待发布文件"
           ls -lh publish/
