@@ -134,28 +134,6 @@ jobs:
           fi
           echo "::endgroup::"
 
-          echo "::group::Download kernel bundle packages (kernel-bundle)"
-          if gh release view "kernel-bundle" --repo "${{ github.repository }}" &>/dev/null; then
-            gh release download "kernel-bundle" \
-              --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-            echo "✅ kernel bundle packages downloaded"
-          else
-            echo "❌ ERROR: Release 'kernel-bundle' not found!"
-            exit 1
-          fi
-          echo "::endgroup::"
-
-          echo "::group::Download xiaomi-mipps-auth"
-          MIPPS_URL=$(wget -qO- https://api.github.com/repos/ianchb/xiaomi-mipps-auth/releases/latest | grep -o '"browser_download_url": "[^"]*\.deb"' | head -1 | cut -d'"' -f4)
-          if [ -n "$MIPPS_URL" ]; then
-            wget -q "$MIPPS_URL"
-            echo "✅ xiaomi-mipps-auth downloaded: $(basename "$MIPPS_URL")"
-          else
-            echo "⚠️  WARNING: xiaomi-mipps-auth not found, skipping"
-          fi
-          echo "::endgroup::"
-
-
           ls -la *.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -5,7 +5,7 @@ set -o pipefail
 # ==========================================
 #  sheng 设备固件/传感器组件构建脚本
 #  编译 fastrpc、libssc、iio-sensor-proxy
-#  下载 mipps-auth，打包所有非内核 .deb
+#  下载 mipps-auth、sheng-thp、pen-status，打包所有非内核 .deb
 #
 #  注意: 需在项目根目录运行
 #        libssc/iio-sensor-proxy 仅在 aarch64 环境编译
@@ -134,6 +134,40 @@ else
     if [ -f "$RULES_FILE" ]; then
         sed -i 's/ssc-light ssc-compass/ssc-light ssc-compass ssc-accel ssc-proximity/' "$RULES_FILE"
     fi
+fi
+
+# ==========================================
+# 3. 下载预构建 .deb 包
+# ==========================================
+
+# --- xiaomi-mipps-auth (充电认证) ---
+echo " 正在下载 xiaomi-mipps-auth 最新版本..."
+MIPPS_URL=$(wget -qO- https://api.github.com/repos/ianchb/xiaomi-mipps-auth/releases/latest | grep -o '"browser_download_url": "[^"]*\.deb"' | head -1 | cut -d'"' -f4)
+if [ -n "$MIPPS_URL" ]; then
+    wget -q "$MIPPS_URL" -P packages/
+    echo " xiaomi-mipps-auth 下载完成"
+else
+    echo " 未找到 xiaomi-mipps-auth .deb，跳过"
+fi
+
+# --- xiaomi-sheng-thp (触摸屏 THP 用户态守护进程) ---
+echo " 正在下载 xiaomi-sheng-thp 最新版本..."
+THP_URL=$(wget -qO- https://api.github.com/repos/ianchb/xiaomi-sheng-thp/releases/latest | grep -o '"browser_download_url": "[^"]*\.deb"' | head -1 | cut -d'"' -f4)
+if [ -n "$THP_URL" ]; then
+    wget -q "$THP_URL" -P packages/
+    echo " xiaomi-sheng-thp 下载完成"
+else
+    echo " 未找到 xiaomi-sheng-thp .deb，跳过"
+fi
+
+# --- xiaomi-pen-status (触控笔状态/蓝牙连接工具) ---
+echo " 正在下载 xiaomi-pen-status 最新版本..."
+PEN_URL=$(wget -qO- https://api.github.com/repos/ianchb/xiaomi-pen-status/releases/latest | grep -o '"browser_download_url": "[^"]*\.deb"' | head -1 | cut -d'"' -f4)
+if [ -n "$PEN_URL" ]; then
+    wget -q "$PEN_URL" -P packages/
+    echo " xiaomi-pen-status 下载完成"
+else
+    echo " 未找到 xiaomi-pen-status .deb，跳过"
 fi
 
 # ==========================================

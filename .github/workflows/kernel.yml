@@ -8,17 +8,21 @@ on:
         required: true
         type: string
         default: '7.1.0'
-      trigger_bundle:
-        description: '构建完成后触发 Build Kernel Bundle'
+      build_bundle:
+        description: '同时构建固件/传感器组件'
         type: boolean
         default: true
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  # ==========================================
+  # Job 1: 内核编译
+  # ==========================================
+  build-kernel:
     name: "构建内核 v${{ github.event.inputs.kernel_version }}"
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
 
     steps:
       - name: "📥 检出代码"
@@ -61,10 +65,6 @@ jobs:
           export CCACHE_DIR=/home/runner/.ccache
           export CCACHE_MAXSIZE=10G
 
-          # ==========================================
-          # 所有的卡死修复和报错剔除都已经写在脚本里了
-          # 这里直接无脑运行即可！
-          # ==========================================
           chmod +x scripts/sheng-kernel-build.sh
           bash scripts/sheng-kernel-build.sh "${{ github.event.inputs.kernel_version }}"
 
@@ -78,7 +78,7 @@ jobs:
           key: ${{ runner.os }}-ccache-unified-kernel-${{ github.event.inputs.kernel_version }}-${{ github.ref_name }}
 
       - name: "📦 收集并统计编译产物"
-        id: collect_artifacts
+        id: collect
         run: |
           echo "::group::Debian 包 (.deb)"
           PKG_COUNT=$(ls -1 packages/*.deb 2>/dev/null | wc -l)
@@ -104,16 +104,10 @@ jobs:
 
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
-      - name: "📤 上传生成的配置文件"
+      - name: "📤 上传内核 .deb"
         uses: actions/upload-artifact@v4
         with:
-          name: generated-config
-          path: sm8550.config
-
-      - name: "📤 上传系统驱动包 (.deb)"
-        uses: actions/upload-artifact@v4
-        with:
-          name: unified-kernel-debs-${{ github.event.inputs.kernel_version }}
+          name: kernel-debs
           path: "packages/*.deb"
           retention-days: 7
           if-no-files-found: error
@@ -121,40 +115,168 @@ jobs:
       - name: "📤 上传启动镜像 (boot.img)"
         uses: actions/upload-artifact@v4
         with:
-          name: boot_images
+          name: boot-images
           path: |
             boot_sheng_singleboot.img
             boot_sheng_dualboot.img
+          retention-days: 7
 
-      - name: "📤 上传 UKI EFI 文件"
+      - name: "📤 上传 UKI EFI"
         uses: actions/upload-artifact@v4
         with:
-          name: bootaa64.efi
+          name: boot-efi
           path: bootaa64.efi
+          retention-days: 7
 
-      - name: "🏷️ 自动发布 GitHub Release"
-        if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
+      - name: "📤 上传内核配置"
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-config
+          path: sm8550.config
+          retention-days: 7
+
+  # ==========================================
+  # Job 2: 固件/传感器组件 (与内核并行)
+  # ==========================================
+  build-bundle:
+    name: "构建固件/传感器组件"
+    runs-on: ubuntu-24.04-arm
+    if: ${{ github.event.inputs.build_bundle == 'true' }}
+
+    steps:
+      - name: "📥 检出代码"
+        uses: actions/checkout@v4
+
+      - name: "🔧 部署构建环境"
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            build-essential autoconf automake libtool \
+            clang lld \
+            pkg-config ninja-build \
+            libglib2.0-dev libprotobuf-c-dev libqmi-glib-dev libmbim-glib-dev \
+            libgudev-1.0-dev libpolkit-gobject-1-dev \
+            libsystemd-dev libdbus-1-dev \
+            protobuf-compiler protobuf-c-compiler \
+            libyaml-dev libbsd-dev \
+            wget unzip zstd python3 python3-pip
+
+          python3 -m pip install --user --upgrade pip
+          python3 -m pip install --user "meson>=1.4.0"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+          echo "✅ 构建工具安装完成"
+
+      - name: "🔨 构建固件组件"
+        run: |
+          chmod +x scripts/sheng-firmware-build.sh
+          bash scripts/sheng-firmware-build.sh
+          echo "✅ 固件组件构建完成"
+
+      - name: "📦 收集产物"
+        id: collect
+        run: |
+          echo "::group::设备 .deb 包"
+          PKG_COUNT=$(ls -1 packages/*.deb 2>/dev/null | wc -l)
+          if [ "$PKG_COUNT" -gt 0 ]; then
+            echo "📦 共找到 $PKG_COUNT 个包:"
+            ls -lh packages/*.deb
+          else
+            echo "❌ ERROR: 未找到任何 .deb 文件！"
+            exit 1
+          fi
+          echo "::endgroup::"
+          echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
+
+      - name: "📤 上传固件 .deb"
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-debs
+          path: "packages/*.deb"
+          retention-days: 7
+          if-no-files-found: error
+
+  # ==========================================
+  # Job 3: 统一发布
+  # ==========================================
+  publish:
+    name: "发布 Release"
+    runs-on: ubuntu-latest
+    needs: [build-kernel, build-bundle]
+    if: |
+      always() &&
+      (needs.build-kernel.result == 'success' || needs.build-kernel.result == 'skipped') &&
+      (needs.build-bundle.result == 'success' || needs.build-bundle.result == 'skipped') &&
+      (needs.build-kernel.result == 'success' || needs.build-bundle.result == 'success')
+
+    steps:
+      - name: "📥 下载内核产物"
+        uses: actions/download-artifact@v4
+        with:
+          name: kernel-debs
+          path: artifacts/kernel
+
+      - name: "📥 下载固件产物"
+        uses: actions/download-artifact@v4
+        with:
+          name: bundle-debs
+          path: artifacts/bundle
+        continue-on-error: true
+
+      - name: "📥 下载启动镜像"
+        uses: actions/download-artifact@v4
+        with:
+          name: boot-images
+          path: artifacts/boot
+
+      - name: "📥 下载 UKI EFI"
+        uses: actions/download-artifact@v4
+        with:
+          name: boot-efi
+          path: artifacts/efi
+
+      - name: "📥 下载内核配置"
+        uses: actions/download-artifact@v4
+        with:
+          name: kernel-config
+          path: artifacts/config
+
+      - name: "📦 合并产物"
+        run: |
+          echo "::group::最终产物列表"
+          find artifacts -type f -ls
+          echo "::endgroup::"
+
+          # 合并所有 .deb 到 publish 目录
+          mkdir -p publish
+          find artifacts -name "*.deb" -exec cp {} publish/ \;
+          find artifacts -name "*.img" -exec cp {} publish/ \;
+          find artifacts -name "*.efi" -exec cp {} publish/ \;
+          find artifacts -name "sm8550.config" -exec cp {} publish/ \;
+
+          echo "::group::待发布文件"
+          ls -lh publish/
+          echo "::endgroup::"
+
+      - name: "🏷️ 发布 GitHub Release"
         uses: softprops/action-gh-release@v1
         with:
           tag_name: kernel-${{ github.event.inputs.kernel_version }}
           name: "Kernel v${{ github.event.inputs.kernel_version }}"
           body: |
-              **Xiaomi Pad 6S Pro Kernel,boot,uefi (uefi test) v${{ github.event.inputs.kernel_version }}**
+            **Xiaomi Pad 6S Pro Kernel, boot, UEFI v${{ github.event.inputs.kernel_version }}**
 
+            ### 包含组件
+            - 内核 Image.gz + dtb + 模块
+            - 固件 (firmware-xiaomi-sheng, alsa-xiaomi-sheng, fastrpc, ppd-arm-sync, sheng-devauth, sheng-sensors)
+            - 传感器 (libssc, iio-sensor-proxy, 仅 arm64)
+            - 触摸屏 THP 用户态守护进程 (xiaomi-sheng-thp)
+            - 触控笔工具 (xiaomi-pen-status)
+            - 充电认证 (xiaomi-mipps-auth)
           draft: false
           prerelease: false
           files: |
-            packages/*.deb
-            *.img
-            *.efi
+            publish/*
           generate_release_notes: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "🔗 触发 Build Kernel Bundle"
-        if: github.event.inputs.trigger_bundle == 'true'
-        run: |
-          gh workflow run build-kernel-bundle.yml --ref "$GITHUB_REF_NAME"
-          echo "✅ 已触发 Build Kernel Bundle"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
