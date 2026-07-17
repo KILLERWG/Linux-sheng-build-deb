@@ -23,6 +23,7 @@
 ACTION=="remove", GOTO="sheng_accel_end"
 
 SUBSYSTEM=="misc", KERNEL=="fastrpc-adsp*", \
+  ENV{IIO_SENSOR_PROXY_TYPE}+="ssc-accel ssc-proximity", \
   ENV{ACCEL_MOUNT_MATRIX}="0, 1, 0; -1, 0, 0; 0, 0, -1"
 
 LABEL="sheng_accel_end"
