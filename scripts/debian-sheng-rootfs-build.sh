@@ -184,7 +184,7 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
 
             elif [ "$FLAVOUR" = "kde" ]; then
                 echo " 安装 KDE Plasma 桌面环境..."
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y plasma-desktop sddm konsole firefox-esr plasma-workspace systemsettings plasma-nm mesa-vulkan-drivers"
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y kde-plasma-desktop firefox-esr mesa-vulkan-drivers"
                 echo " 配置 Fcitx5 输入法 (拼音 + RIME)..."
                 chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-frontend-qt6 fcitx5-chinese-addons fcitx5-rime fcitx5-module-wayland fcitx5-module-kimpanel kde-config-fcitx5"
 
