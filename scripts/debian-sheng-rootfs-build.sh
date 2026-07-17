@@ -140,21 +140,21 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         echo "nameserver 223.5.5.5" >> rootdir/etc/resolv.conf
 
         echo " 正在安装基础环境组件..."
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog apt-transport-https ca-certificates chrony"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog apt-transport-https ca-certificates chrony"
 
         echo " 正在启用 NTP 时间同步 (chrony)..."
         chroot rootdir systemctl enable chrony
 
         if [ "$distro_variant" != "server" ]; then
             echo " 正在安装 CJK 字体..."
-            chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei"
+            chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei"
         fi
 
         echo " 正在注入设备专属 .deb 驱动包 (由工作流预下载)..."
         cp *.deb rootdir/tmp/
 
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends initramfs-tools"
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends /tmp/*.deb"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y initramfs-tools"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y /tmp/*.deb"
         
         chroot rootdir bash -c "echo 'root:1234' | chpasswd"
         echo "sheng-debian" > rootdir/etc/hostname
@@ -163,7 +163,7 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         #  WiFi 驱动适配与区域码
         # =========================
         echo " 正在预配置高通 WiFi 驱动适配与区域码..."
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends qrtr-tools"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y qrtr-tools"
         chroot rootdir systemctl enable qrtr-ns
         echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.conf
 
@@ -177,20 +177,20 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
 
             if [ "$FLAVOUR" = "gnome" ]; then
                 echo " 安装 GNOME 桌面环境..."
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends gnome-core gnome-terminal gdm3 firefox-esr mesa-vulkan-drivers"
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y gnome-core gnome-terminal gdm3 firefox-esr mesa-vulkan-drivers"
                 echo " 配置 IBus 输入法 (拼音 + RIME)..."
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends ibus ibus-gtk3 ibus-libpinyin ibus-rime"
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y  ibus ibus-gtk3 ibus-libpinyin ibus-rime"
                 chroot rootdir systemctl enable gdm3
 
             elif [ "$FLAVOUR" = "kde" ]; then
                 echo " 安装 KDE Plasma 桌面环境..."
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends plasma-desktop sddm konsole firefox-esr plasma-workspace systemsettings plasma-nm mesa-vulkan-drivers"
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y plasma-desktop sddm konsole firefox-esr plasma-workspace systemsettings plasma-nm mesa-vulkan-drivers"
                 echo " 配置 Fcitx5 输入法 (拼音 + RIME)..."
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-frontend-qt6 fcitx5-chinese-addons fcitx5-rime fcitx5-module-wayland fcitx5-module-kimpanel kde-config-fcitx5"
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-frontend-qt6 fcitx5-chinese-addons fcitx5-rime fcitx5-module-wayland fcitx5-module-kimpanel kde-config-fcitx5"
 
                 if [ "$distro_version" = "forky" ]; then
                     echo " 安装 Plasma Keyboard (forky)..."
-                    chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends plasma-keyboard"
+                    chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y  plasma-keyboard"
                 fi
 
                 chroot rootdir systemctl enable sddm
@@ -212,6 +212,9 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         # =========================
         #  写入配置文件 (委托给 provision 脚本)
         # =========================
+
+        echo "写入配置文件 (委托给 provision 脚本)"
+        
         env -i \
             ROOTFS_DIR="$PWD/rootdir" \
             FLAVOUR="$FLAVOUR" \
