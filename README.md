@@ -21,13 +21,11 @@
 |--------|------------|----------|--------------------------|
 |核心|系统刷写|正常|仅限Debian,Ubuntu尚未完整测试|
 |核心|屏幕/触摸|正常|含休眠/亮度/触摸|
-|核心|键盘/触摸板|部分正常|官方键盘有概率无响应，需要重新与触点连接|
-|连接|Wi-Fi|正常|部分地区需要设置wifi区域码才能正常使用5GHz Wifi|
-|连接|蓝牙|正常||
-|连接|Type-C|正常||
+|核心|键盘/触摸板/手写笔|部分正常|官方键盘有概率无响应，需要重新与触点连接，手写笔需要配合7.1.3内核版本及以上和[xiaomi-sheng-thp](https://github.com/ianchb/xiaomi-sheng-thp) 软件包使用|
+|无线连接|Wi-Fi/蓝牙|正常|部分地区需要设置wifi区域码才能正常使用5GHz Wifi|
+|有线连接|Type-C|正常||
 |多媒体|音频/相机|正常|相机效果劣于Android|
-|传感器|全部|正常|自动旋转/亮度/霍尔等|
-||手写笔|正常|需要配合7.1.3-thp-wip内核版本和[xiaomi-sheng-thp](https://github.com/ianchb/xiaomi-sheng-thp) 软件包使用|
+|传感器|自动旋转/亮度/霍尔/指纹传感器等|正常|指纹传感器需配合7.1.4内核及以上和[xiaomi-sheng-fingerprint](https://github.com/ianchb/xiaomi-sheng-fingerprint)软件包使用|
 
 > 完整功能状态表请查阅 [PostmarketOS wiki](https://wiki.postmarketos.org/wiki/Xiaomi_Pad_6S_Pro_12.4_(xiaomi-sheng))
 

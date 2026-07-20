@@ -160,6 +160,16 @@ else
     echo " 未找到 xiaomi-sheng-thp .deb，跳过"
 fi
 
+# --- xiaomi-sheng-fingerprint (指纹传感器固件/驱动) ---
+echo " 正在下载 xiaomi-sheng-fingerprint 最新版本..."
+FINGERPRINT_URL=$(wget -qO- https://api.github.com/repos/ianchb/xiaomi-sheng-fingerprint/releases/latest | grep -o '"browser_download_url": "[^"]*\.deb"' | head -1 | cut -d'"' -f4)
+if [ -n "$FINGERPRINT_URL" ]; then
+    wget -q "$FINGERPRINT_URL" -P packages/
+    echo " xiaomi-sheng-fingerprint 下载完成"
+else
+    echo " 未找到 xiaomi-sheng-fingerprint .deb，跳过"
+fi
+
 # --- xiaomi-pen-status (触控笔状态/蓝牙连接工具) ---
 echo " 正在下载 xiaomi-pen-status 最新版本..."
 PEN_URL=$(wget -qO- https://api.github.com/repos/ianchb/xiaomi-pen-status/releases/latest | grep -o '"browser_download_url": "[^"]*\.deb"' | head -1 | cut -d'"' -f4)
@@ -171,7 +181,23 @@ else
 fi
 
 # ==========================================
-# 4. UsrMerge 路径迁移
+# 4. 编译 sheng-devauth (键盘认证服务)
+# ==========================================
+echo " 编译 sheng-devauth..."
+DEVUAUTH_SRC="/tmp/sheng_devauth"
+rm -rf "$DEVUAUTH_SRC"
+git clone https://github.com/ianchb/sheng_devauth.git --depth 1 "$DEVUAUTH_SRC"
+make -C "$DEVUAUTH_SRC" \
+    CC="clang --target=aarch64-linux-gnu" \
+    LDFLAGS="-fuse-ld=lld" \
+    -j$(nproc)
+mkdir -p packages/sheng-devauth/usr/bin
+install -Dm755 "$DEVUAUTH_SRC/xiaomi_devauth" packages/sheng-devauth/usr/bin/xiaomi_devauth
+rm -rf "$DEVUAUTH_SRC"
+echo " sheng-devauth 编译完成"
+
+# ==========================================
+# 5. UsrMerge 路径迁移
 # ==========================================
 echo " 正在进行 UsrMerge 路径手术"
 for pkg in packages/firmware-xiaomi-sheng packages/alsa-xiaomi-sheng packages/fastrpc packages/ppd-arm-sync; do
@@ -183,7 +209,7 @@ for pkg in packages/firmware-xiaomi-sheng packages/alsa-xiaomi-sheng packages/fa
 done
 
 # ==========================================
-# 5. 打包所有组件
+# 6. 打包所有组件
 # ==========================================
 echo " 打包 .deb..."
 log_exec dpkg-deb --build --root-owner-group -Zzstd -z10 packages/firmware-xiaomi-sheng

@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: '内核版本号 (例如 7.1.0)'
+        description: '内核版本号 (例如 7.1.4)'
         required: true
         type: string
-        default: '7.1.0'
+        default: '7.1.4'
       variant:
         description: '选择构建类型'
         required: true

@@ -7,7 +7,7 @@ set -o pipefail
 # ==========================================
 usage() {
     echo "用法: $0 <kernel_version>"
-    echo "示例: $0 7.1.0"
+    echo "示例: $0 7.1.4"
     echo ""
     echo "  内核版本号将用于:"
     echo "    - git clone 分支: sheng-<version>"
