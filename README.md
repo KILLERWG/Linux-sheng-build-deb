@@ -36,7 +36,7 @@
 
 1.fork此项目       
 2.在你fork的项目上点击`Action`页面，点击`I understand my workflows, go ahead and enable them`启用Action      
-3.点击`Build Kernel`条目，点击`Run workflow`输入内核版本号（如7.1.0），点击绿色的`Run workflow`等待内核以及相关固件包构建完成  
+3.点击`Build Kernel`条目，点击`Run workflow`输入内核版本号（如7.1.4），点击绿色的`Run workflow`等待内核以及相关固件包构建完成  
 4.内核编译完成后在Action左侧选择发行版（如Debian，Ubuntu尚未完整测试），点击`Run workflow`在输入你编译好的内核版本号，选择版本，构建类型等，点击绿色的`Run workflow`开始构建rootfs，构建完成后的成品可在release查看
 
 ### 本地构建
