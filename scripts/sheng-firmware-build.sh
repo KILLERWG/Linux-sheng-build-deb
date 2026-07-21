@@ -51,9 +51,9 @@ fi
 # 1. fastrpc
 # ==========================================
 echo " 构建 fastrpc..."
-log_exec wget -q https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.6.zip
-log_exec unzip -qo v1.0.6.zip
-cd fastrpc-1.0.6
+log_exec wget -q https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.2.zip
+log_exec unzip -qo v1.0.2.zip
+cd fastrpc-1.0.2
 log_exec autoreconf -is
 log_exec ./configure --prefix=/usr --host=aarch64-linux-gnu \
     CC="clang --target=aarch64-linux-gnu" \
@@ -63,7 +63,7 @@ log_exec make -j$(nproc)
 log_exec make DESTDIR=$PWD/stage install
 cd ..
 mkdir -p packages/fastrpc/usr
-cp -r fastrpc-1.0.6/stage/usr/* packages/fastrpc/usr/
+cp -r fastrpc-1.0.2/stage/usr/* packages/fastrpc/usr/
 find packages/fastrpc/usr/bin -type f -exec chmod +x {} \;
 find packages/fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 

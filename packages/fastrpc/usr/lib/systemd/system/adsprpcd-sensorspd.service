@@ -6,7 +6,7 @@ Before=iio-sensor-proxy.service
 
 [Service]
 Type=exec
-ExecStart=/usr/sbin/adsprpcd sensorspd
+ExecStart=/usr/bin/adsprpcd sensorspd
 Restart=on-failure
 RestartSec=5
 
